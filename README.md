@@ -37,15 +37,6 @@
 - **WebAssembly 运行时** - 使用 Emscripten 编译，运行在浏览器环境
 - **双缓冲机制** - 线程安全的数据交换，支持仿真与数据读取并行
 
-### 技术栈
-- **编程语言**: C++20
-- **构建系统**: CMake 3.15+
-- **编译器**: Emscripten (WASM) / GCC 15.1.0+ (本地)
-- **依赖库**:
-  - `asio` - 异步 I/O 库
-  - `tinyxml` - XML 解析库
-  - `ngspice` - 电路仿真库
-
 ## 📦 前置要求
 
 ### 必需工具
@@ -133,6 +124,7 @@ build-wasm.bat
 ```bash
 # 激活 Emscripten 环境
 source /path/to/emsdk/emsdk_env.sh
+Windows(cmd) 使用emsdk_env.bat
 
 # 创建构建目录
 mkdir -p build-wasm
@@ -251,50 +243,6 @@ const time = Module._getSimulationTime();  // 单位：皮秒 (ps)
 Module.ccall('stopSimulation', null, [], []);
 ```
 
-### 5. 仿真状态说明
-
-| 状态码 | 状态名 | 说明 |
-|-------|--------|-----|
-| 0 | SIM_STOPPED | 仿真已停止 |
-| 1 | SIM_ERROR | 仿真出错 |
-| 2 | SIM_STARTING | 仿真启动中 |
-| 3 | SIM_PAUSED | 仿真已暂停 |
-| 4 | SIM_WAITING | 仿真等待中 |
-| 5 | SIM_RUNNING | 仿真运行中 |
-| 6 | SIM_DEBUG | 仿真调试模式 |
-
-
-## 🤝 贡献指南
-
-我们欢迎社区贡献！在提交 Pull Request 之前，请注意：
-
-### 贡献要求
-
-1. **遵守开源协议**
-   - 修改 Santiago González 的原始代码将采用 AGPLv3 协议授权
-   - 新增代码将采用 GPLv3 协议授权
-
-2. **代码质量**
-   - 遵循现有代码风格和命名规范
-   - 确保代码可以正常编译且无警告
-   - 添加必要的注释说明复杂逻辑
-
-3. **测试要求**
-   - 所有新功能必须包含测试用例
-   - 确保现有测试不受影响
-   - 在多个浏览器中测试 WASM 模块
-
-4. **文档更新**
-   - 更新相关文档说明新功能或变更
-   - 如有 API 变更，更新 README 中的示例代码
-
-### 提交流程
-
-1. Fork 本仓库
-2. 创建特性分支 (`git checkout -b feature/AmazingFeature`)
-3. 提交更改 (`git commit -m 'Add some AmazingFeature'`)
-4. 推送到分支 (`git push origin feature/AmazingFeature`)
-5. 开启 Pull Request
 
 ## 📝 常见问题
 
@@ -326,16 +274,8 @@ Module.ccall('stopSimulation', null, [], []);
 
 ## 🙏 致谢
 
-- [Simulide 项目](https://simulide.com/p/) - 感谢提供优秀的电路仿真引擎
+- Simulide 项目 ([simulide.com](https://simulide.com/p/)) - 感谢提供优秀的电路仿真引擎
 - 所有项目贡献者和开源社区的支持
 
-## 📧 联系方式
-
-- 问题反馈：请在 GitHub Issues 中提交
-- 技术讨论：欢迎参与 Pull Request 讨论
-
----
-
-**© 2025 EasyEDA & JLC Technology Group. All rights reserved.**
 
 

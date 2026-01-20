@@ -470,7 +470,7 @@ uint64_t Simulator::realPsPF()
 }
 
 //暂停仿真
-void Simulator::pauseSim() // Only pause simulation, don't update UI
+void Simulator::pauseSim() 
 {
     std::lock_guard<std::mutex> lock(simStateMutex);
     if(m_state <= SIM_PAUSED) return;

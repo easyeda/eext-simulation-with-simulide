@@ -11,7 +11,7 @@
 using namespace emscripten;
 #endif
 
-// Global circuit instance
+// 全局变量
 Circuit* g_circuit = nullptr;
 Simulator* g_simulator = nullptr;
 
@@ -80,7 +80,7 @@ int getSimulationState() {
     if (g_simulator) {
         return g_simulator->simState();
     }
-    return 0; // SIM_STOPPED
+    return 0; 
 }
 
 // 设置当前仿真速度
