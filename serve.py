@@ -39,7 +39,7 @@ if __name__ == '__main__':
     print(f"  WASM Test Server")
     print(f"========================================")
     print(f"Server running at: http://localhost:{PORT}")
-    print(f"Test page: http://localhost:{PORT}/test-wasm.html")
+    print(f"Test page: http://localhost:{PORT}/test.html")
     print(f"")
     print(f"Press Ctrl+C to stop the server")
     print(f"========================================\n")

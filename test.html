@@ -325,7 +325,7 @@
         let frameCount = 0;
         let lastFpsUpdate = Date.now();
 
-        // Simulation state constants
+        // 仿真状态
         const SimState = {
             SIM_STOPPED: 0,
             SIM_ERROR: 1,
@@ -346,20 +346,20 @@
             6: 'Debug'
         };
 
-        // Initialize WASM module
+        // 初始化WASM模块
         async function initWasm() {
             showStatus('loading', 'Loading WASM module...');
             addLog('info', 'Initializing WASM module...');
 
             try {
-                const wasmModule = await import('./build-wasm/lceda-pro-sim-server.js');
+                const wasmModule = await import('./output/lceda-pro-sim-server.js');
                 Module = await wasmModule.default();
 
                 showStatus('success', 'WASM module loaded successfully!');
                 addLog('info', 'WASM module initialized');
                 addLog('info', `Version: ${Module.ccall('getVersion', 'string', [], [])}`);
 
-                // // Test add function
+                // // 模块测试
                 // const result = Module.ccall('add', 'number', ['number', 'number'], [5, 3]);
                 // addLog('info', `Test function: 5 + 3 = ${result}`);
 
@@ -370,7 +370,7 @@
             }
         }
 
-        // Animation loop for continuous simulation
+        // 仿真循环
         function simulationLoop() {
             if (!Module || !isSimulationRunning) {
                 return;
@@ -380,34 +380,27 @@
                 const state = Module._getSimulationState();
 
                 if (state === SimState.SIM_RUNNING) {
-                    // Step the simulation forward
+                    // 仿真步进
                     Module._stepSimulation();
 
-                    // Get simulation data (safe to call simultaneously!)
-                    // This demonstrates the double-buffer thread-safe pattern
+                    //尝试获取仿真数据
                     try {
                         const dataJson = Module.ccall('getSimulationData', 'string', [], []);
                         const data = JSON.parse(dataJson);
 
-                        // Log data periodically (every 60 frames to avoid spam)
                         if (frameCount % 60 === 0 && (data.meters?.length > 0 || data.status?.length > 0)) {
                             console.log('Simulation data:', data);
                         }
                     } catch (e) {
-                        // Ignore data errors, keep simulation running
                         console.error('Data fetch error:', e);
                     }
 
-                    // Update UI
                     updateSimulationInfo();
 
-                    // Count frames for FPS
                     frameCount++;
 
-                    // Continue loop
                     animationFrameId = requestAnimationFrame(simulationLoop);
                 } else {
-                    // Simulation stopped or paused
                     stopAnimationLoop();
                     addLog('info', `Simulation loop stopped (state: ${stateNames[state]})`);
                 }
@@ -417,7 +410,6 @@
             }
         }
 
-        // Start animation loop
         function startAnimationLoop() {
             if (animationFrameId !== null) {
                 addLog('warning', 'Animation loop already running');
@@ -431,7 +423,6 @@
             animationFrameId = requestAnimationFrame(simulationLoop);
         }
 
-        // Stop animation loop
         function stopAnimationLoop() {
             if (animationFrameId !== null) {
                 cancelAnimationFrame(animationFrameId);
@@ -440,7 +431,7 @@
             isSimulationRunning = false;
         }
 
-        // Update simulation info display
+        // 更新仿真显示
         function updateSimulationInfo() {
             if (!Module) return;
 
@@ -451,7 +442,6 @@
                 document.getElementById('simState').textContent = stateNames[state] || 'Unknown';
                 document.getElementById('simTime').textContent = `${time.toFixed(2)} ps`;
 
-                // Update FPS every second
                 const now = Date.now();
                 if (now - lastFpsUpdate >= 1000) {
                     const fps = Math.round(frameCount / ((now - lastFpsUpdate) / 1000));
@@ -460,14 +450,12 @@
                     lastFpsUpdate = now;
                 }
 
-                // Show sim info panel
                 document.getElementById('simInfo').classList.add('show');
             } catch (error) {
                 addLog('error', `UI update error: ${error.message}`);
             }
         }
 
-        // File upload handling
         const uploadArea = document.getElementById('uploadArea');
         const fileInput = document.getElementById('fileInput');
         const fileInfo = document.getElementById('fileInfo');
@@ -481,7 +469,6 @@
 
         fileInput.addEventListener('change', handleFileSelect);
 
-        // Drag and drop
         uploadArea.addEventListener('dragover', (e) => {
             e.preventDefault();
             uploadArea.classList.add('dragover');
@@ -517,7 +504,6 @@
 
             addLog('info', `File selected: ${file.name} (${file.size} bytes)`);
 
-            // Read file content
             const reader = new FileReader();
             reader.onload = (e) => {
                 selectedFileContent = e.target.result;
@@ -530,7 +516,7 @@
             reader.readAsText(file);
         }
 
-        // Load circuit button
+        // 导入电路按钮
         loadBtn.addEventListener('click', async () => {
             if (!Module) {
                 showStatus('error', 'WASM module not loaded');
@@ -570,7 +556,7 @@
             }
         });
 
-        // Start simulation button
+        // 开始仿真
         startBtn.addEventListener('click', () => {
             if (!Module) {
                 showStatus('error', 'WASM module not loaded');
@@ -583,17 +569,17 @@
             try {
                 Module.ccall('startSimulation', null, [], []);
 
-                // Start the animation loop
+                // 开始仿真循环
                 startAnimationLoop();
 
                 showStatus('success', 'Simulation started!');
                 addLog('info', 'Simulation running');
 
-                // Update button states
+                // 更新按钮状态
                 startBtn.disabled = true;
                 stopBtn.disabled = false;
 
-                // Get simulation state
+                // 获取仿真状态
                 const state = Module.ccall('getSimulationState', 'number', [], []);
                 addLog('info', `Simulation state: ${state}`);
             } catch (error) {
@@ -603,7 +589,7 @@
             }
         });
 
-        // Stop simulation button
+        // 停止仿真
         stopBtn.addEventListener('click', () => {
             if (!Module) {
                 showStatus('error', 'WASM module not loaded');
@@ -614,20 +600,16 @@
             addLog('info', 'Stopping simulation...');
 
             try {
-                // Stop the animation loop first
                 stopAnimationLoop();
 
-                // Stop the simulation
                 Module.ccall('stopSimulation', null, [], []);
 
                 showStatus('success', 'Simulation stopped');
                 addLog('info', 'Simulation stopped');
 
-                // Update button states
                 startBtn.disabled = false;
                 stopBtn.disabled = true;
 
-                // Update UI one last time
                 updateSimulationInfo();
             } catch (error) {
                 showStatus('error', `Error: ${error.message}`);
@@ -636,14 +618,12 @@
             }
         });
 
-        // Status display
         function showStatus(type, message) {
             const status = document.getElementById('status');
             status.className = `status ${type} show`;
             status.textContent = message;
         }
 
-        // Log display
         function addLog(type, message) {
             const log = document.getElementById('log');
             log.classList.add('show');
@@ -657,7 +637,6 @@
             log.scrollTop = log.scrollHeight;
         }
 
-        // Initialize on load
         initWasm();
     </script>
 </body>

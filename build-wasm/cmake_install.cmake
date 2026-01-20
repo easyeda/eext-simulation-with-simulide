@@ -1,4 +1,4 @@
-# Install script for directory: F:/company/simuliation-WASM/sim_eda
+# Install script for directory: F:/company/simuliation-WASM/simulide/eext-simulation-with-simulide
 
 # Set the install prefix
 if(NOT DEFINED CMAKE_INSTALL_PREFIX)
@@ -12,7 +12,7 @@ if(NOT DEFINED CMAKE_INSTALL_CONFIG_NAME)
     string(REGEX REPLACE "^[^A-Za-z0-9_]+" ""
            CMAKE_INSTALL_CONFIG_NAME "${BUILD_TYPE}")
   else()
-    set(CMAKE_INSTALL_CONFIG_NAME "Release")
+    set(CMAKE_INSTALL_CONFIG_NAME "")
   endif()
   message(STATUS "Install configuration: \"${CMAKE_INSTALL_CONFIG_NAME}\"")
 endif()
@@ -39,7 +39,7 @@ endif()
 
 if(NOT CMAKE_INSTALL_LOCAL_ONLY)
   # Include the install script for the subdirectory.
-  include("F:/company/simuliation-WASM/sim_eda/build-wasm/src/cirSim/src/cmake_install.cmake")
+  include("F:/company/simuliation-WASM/simulide/eext-simulation-with-simulide/build-wasm/src/cirSim/src/cmake_install.cmake")
 endif()
 
 if(CMAKE_INSTALL_COMPONENT)
@@ -57,6 +57,6 @@ endif()
 if(NOT CMAKE_INSTALL_LOCAL_ONLY)
   string(REPLACE ";" "\n" CMAKE_INSTALL_MANIFEST_CONTENT
        "${CMAKE_INSTALL_MANIFEST_FILES}")
-  file(WRITE "F:/company/simuliation-WASM/sim_eda/build-wasm/${CMAKE_INSTALL_MANIFEST}"
+  file(WRITE "F:/company/simuliation-WASM/simulide/eext-simulation-with-simulide/build-wasm/${CMAKE_INSTALL_MANIFEST}"
      "${CMAKE_INSTALL_MANIFEST_CONTENT}")
 endif()
