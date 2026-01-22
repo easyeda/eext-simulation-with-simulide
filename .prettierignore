@@ -1,0 +1,5 @@
+/build/dist/
+wasm
+/dist/
+/node_modules/
+simulide_to_wasm

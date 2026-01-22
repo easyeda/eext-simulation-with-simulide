@@ -1,4 +1,0 @@
-﻿Настраиваемый "JK" триггер.
-
-#include flipflopfull_ru
-

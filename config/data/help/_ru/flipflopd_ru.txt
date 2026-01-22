@@ -1,4 +1,0 @@
-﻿Настраиваемый  "D" триггер.
-
-#include flipflopfull_ru
-

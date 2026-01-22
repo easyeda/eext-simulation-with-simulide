@@ -1,0 +1,643 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Circuit File Upload Test</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            padding: 40px;
+            max-width: 600px;
+            width: 100%;
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 28px;
+        }
+
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+
+        .upload-area {
+            border: 3px dashed #667eea;
+            border-radius: 15px;
+            padding: 40px;
+            text-align: center;
+            background: #f8f9ff;
+            margin-bottom: 20px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .upload-area:hover {
+            background: #eff1ff;
+            border-color: #764ba2;
+        }
+
+        .upload-area.dragover {
+            background: #e0e7ff;
+            border-color: #4c51bf;
+        }
+
+        .upload-icon {
+            font-size: 48px;
+            margin-bottom: 15px;
+        }
+
+        .upload-text {
+            color: #667eea;
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 5px;
+        }
+
+        .upload-hint {
+            color: #999;
+            font-size: 13px;
+        }
+
+        input[type="file"] {
+            display: none;
+        }
+
+        .file-info {
+            background: #f0f0f0;
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 20px;
+            display: none;
+        }
+
+        .file-info.show {
+            display: block;
+        }
+
+        .file-name {
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 5px;
+        }
+
+        .file-size {
+            color: #666;
+            font-size: 13px;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        button {
+            flex: 1;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .btn-load {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-load:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-load:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+
+        .btn-start {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            color: white;
+        }
+
+        .btn-start:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(245, 87, 108, 0.4);
+        }
+
+        .btn-start:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+
+        .btn-stop {
+            background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
+            color: white;
+        }
+
+        .btn-stop:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(250, 112, 154, 0.4);
+        }
+
+        .btn-stop:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+
+        .sim-info {
+            background: #f8f9ff;
+            border-radius: 10px;
+            padding: 15px;
+            margin-top: 20px;
+            display: none;
+        }
+
+        .sim-info.show {
+            display: block;
+        }
+
+        .sim-info-item {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            font-size: 14px;
+        }
+
+        .sim-info-label {
+            font-weight: 600;
+            color: #667eea;
+        }
+
+        .sim-info-value {
+            color: #333;
+            font-family: 'Courier New', monospace;
+        }
+
+        .status {
+            padding: 15px;
+            border-radius: 10px;
+            margin-top: 20px;
+            display: none;
+            animation: slideIn 0.3s ease;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .status.show {
+            display: block;
+        }
+
+        .status.loading {
+            background: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeeba;
+        }
+
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .log {
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 15px;
+            border-radius: 10px;
+            max-height: 200px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            margin-top: 20px;
+            display: none;
+        }
+
+        .log.show {
+            display: block;
+        }
+
+        .log-line {
+            margin-bottom: 5px;
+        }
+
+        .log-time {
+            color: #858585;
+        }
+
+        .log-info {
+            color: #4ec9b0;
+        }
+
+        .log-error {
+            color: #f48771;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔌 Circuit Simulator</h1>
+        <p class="subtitle">Load and simulate your circuit files</p>
+
+        <div class="upload-area" id="uploadArea">
+            <div class="upload-icon">📁</div>
+            <div class="upload-text">Click to select or drag and drop your circuit file</div>
+            <div class="upload-hint">Supports netlist files (.cir, .txt, etc.)</div>
+            <input type="file" id="fileInput" accept=".cir,.txt,.net,.sp,.ckt">
+        </div>
+
+        <div class="file-info" id="fileInfo">
+            <div class="file-name" id="fileName">No file selected</div>
+            <div class="file-size" id="fileSize"></div>
+        </div>
+
+        <div class="button-group">
+            <button class="btn-load" id="loadBtn" disabled>Load Circuit</button>
+            <button class="btn-start" id="startBtn" disabled>Start Simulation</button>
+            <button class="btn-stop" id="stopBtn" disabled>Stop Simulation</button>
+        </div>
+
+        <div class="sim-info" id="simInfo">
+            <div class="sim-info-item">
+                <span class="sim-info-label">State:</span>
+                <span class="sim-info-value" id="simState">Stopped</span>
+            </div>
+            <div class="sim-info-item">
+                <span class="sim-info-label">Time:</span>
+                <span class="sim-info-value" id="simTime">0.0 ps</span>
+            </div>
+            <div class="sim-info-item">
+                <span class="sim-info-label">FPS:</span>
+                <span class="sim-info-value" id="simFps">0</span>
+            </div>
+        </div>
+
+        <div class="status" id="status"></div>
+
+        <div class="log" id="log"></div>
+    </div>
+
+    <script type="module">
+        let Module = null;
+        let selectedFile = null;
+        let selectedFileContent = null;
+        let animationFrameId = null;
+        let isSimulationRunning = false;
+        let frameCount = 0;
+        let lastFpsUpdate = Date.now();
+
+        // 仿真状态
+        const SimState = {
+            SIM_STOPPED: 0,
+            SIM_ERROR: 1,
+            SIM_STARTING: 2,
+            SIM_PAUSED: 3,
+            SIM_WAITING: 4,
+            SIM_RUNNING: 5,
+            SIM_DEBUG: 6
+        };
+
+        const stateNames = {
+            0: 'Stopped',
+            1: 'Error',
+            2: 'Starting',
+            3: 'Paused',
+            4: 'Waiting',
+            5: 'Running',
+            6: 'Debug'
+        };
+
+        // 初始化WASM模块
+        async function initWasm() {
+            showStatus('loading', 'Loading WASM module...');
+            addLog('info', 'Initializing WASM module...');
+
+            try {
+                const wasmModule = await import('./output/lceda-pro-sim-server.js');
+                Module = await wasmModule.default();
+
+                showStatus('success', 'WASM module loaded successfully!');
+                addLog('info', 'WASM module initialized');
+                addLog('info', `Version: ${Module.ccall('getVersion', 'string', [], [])}`);
+
+                // // 模块测试
+                // const result = Module.ccall('add', 'number', ['number', 'number'], [5, 3]);
+                // addLog('info', `Test function: 5 + 3 = ${result}`);
+
+            } catch (error) {
+                showStatus('error', `Failed to load WASM: ${error.message}`);
+                addLog('error', `WASM load error: ${error.message}`);
+                console.error(error);
+            }
+        }
+
+        // 仿真循环
+        function simulationLoop() {
+            if (!Module || !isSimulationRunning) {
+                return;
+            }
+
+            try {
+                const state = Module._getSimulationState();
+
+                if (state === SimState.SIM_RUNNING) {
+                    // 仿真步进
+                    Module._stepSimulation();
+
+                    //尝试获取仿真数据
+                    try {
+                        const dataJson = Module.ccall('getSimulationData', 'string', [], []);
+                        const data = JSON.parse(dataJson);
+
+                        if (frameCount % 60 === 0 && (data.meters?.length > 0 || data.status?.length > 0)) {
+                            console.log('Simulation data:', data);
+                        }
+                    } catch (e) {
+                        console.error('Data fetch error:', e);
+                    }
+
+                    updateSimulationInfo();
+
+                    frameCount++;
+
+                    animationFrameId = requestAnimationFrame(simulationLoop);
+                } else {
+                    stopAnimationLoop();
+                    addLog('info', `Simulation loop stopped (state: ${stateNames[state]})`);
+                }
+            } catch (error) {
+                addLog('error', `Simulation loop error: ${error.message}`);
+                stopAnimationLoop();
+            }
+        }
+
+        function startAnimationLoop() {
+            if (animationFrameId !== null) {
+                addLog('warning', 'Animation loop already running');
+                return;
+            }
+
+            isSimulationRunning = true;
+            frameCount = 0;
+            lastFpsUpdate = Date.now();
+            addLog('info', 'Starting animation loop');
+            animationFrameId = requestAnimationFrame(simulationLoop);
+        }
+
+        function stopAnimationLoop() {
+            if (animationFrameId !== null) {
+                cancelAnimationFrame(animationFrameId);
+                animationFrameId = null;
+            }
+            isSimulationRunning = false;
+        }
+
+        // 更新仿真显示
+        function updateSimulationInfo() {
+            if (!Module) return;
+
+            try {
+                const state = Module._getSimulationState();
+                const time = Module._getSimulationTime();
+
+                document.getElementById('simState').textContent = stateNames[state] || 'Unknown';
+                document.getElementById('simTime').textContent = `${time.toFixed(2)} ps`;
+
+                const now = Date.now();
+                if (now - lastFpsUpdate >= 1000) {
+                    const fps = Math.round(frameCount / ((now - lastFpsUpdate) / 1000));
+                    document.getElementById('simFps').textContent = fps;
+                    frameCount = 0;
+                    lastFpsUpdate = now;
+                }
+
+                document.getElementById('simInfo').classList.add('show');
+            } catch (error) {
+                addLog('error', `UI update error: ${error.message}`);
+            }
+        }
+
+        const uploadArea = document.getElementById('uploadArea');
+        const fileInput = document.getElementById('fileInput');
+        const fileInfo = document.getElementById('fileInfo');
+        const fileName = document.getElementById('fileName');
+        const fileSize = document.getElementById('fileSize');
+        const loadBtn = document.getElementById('loadBtn');
+        const startBtn = document.getElementById('startBtn');
+        const stopBtn = document.getElementById('stopBtn');
+
+        uploadArea.addEventListener('click', () => fileInput.click());
+
+        fileInput.addEventListener('change', handleFileSelect);
+
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.classList.add('dragover');
+        });
+
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.classList.remove('dragover');
+        });
+
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('dragover');
+
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                handleFile(files[0]);
+            }
+        });
+
+        function handleFileSelect(event) {
+            const file = event.target.files[0];
+            if (file) {
+                handleFile(file);
+            }
+        }
+
+        function handleFile(file) {
+            selectedFile = file;
+            fileName.textContent = file.name;
+            fileSize.textContent = `Size: ${(file.size / 1024).toFixed(2)} KB`;
+            fileInfo.classList.add('show');
+            loadBtn.disabled = false;
+
+            addLog('info', `File selected: ${file.name} (${file.size} bytes)`);
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                selectedFileContent = e.target.result;
+                addLog('info', 'File content loaded');
+            };
+            reader.onerror = (e) => {
+                showStatus('error', 'Failed to read file');
+                addLog('error', 'File read error');
+            };
+            reader.readAsText(file);
+        }
+
+        // 导入电路按钮
+        loadBtn.addEventListener('click', async () => {
+            if (!Module) {
+                showStatus('error', 'WASM module not loaded');
+                return;
+            }
+
+            if (!selectedFileContent) {
+                showStatus('error', 'No file content available');
+                return;
+            }
+
+            showStatus('loading', 'Loading circuit...');
+            addLog('info', `Loading circuit from ${selectedFile.name}...`);
+
+            try {
+                // Call the new loadCircuitFromFile function
+                const result = Module.ccall(
+                    'loadCircuitFromFile',
+                    'number',
+                    ['string', 'string'],
+                    [selectedFile.name, selectedFileContent]
+                );
+
+                if (result === 0) {
+                    showStatus('success', 'Circuit loaded successfully!');
+                    addLog('info', 'Circuit loaded successfully');
+                    startBtn.disabled = false;
+                } else {
+                    const errorMsg = result === -1 ? 'Null content' : 'Load exception';
+                    showStatus('error', `Failed to load circuit: ${errorMsg} (code: ${result})`);
+                    addLog('error', `Load failed with code: ${result}`);
+                }
+            } catch (error) {
+                showStatus('error', `Error: ${error.message}`);
+                addLog('error', `Exception: ${error.message}`);
+                console.error(error);
+            }
+        });
+
+        // 开始仿真
+        startBtn.addEventListener('click', () => {
+            if (!Module) {
+                showStatus('error', 'WASM module not loaded');
+                return;
+            }
+
+            showStatus('loading', 'Starting simulation...');
+            addLog('info', 'Starting simulation...');
+
+            try {
+                Module.ccall('startSimulation', null, [], []);
+
+                // 开始仿真循环
+                startAnimationLoop();
+
+                showStatus('success', 'Simulation started!');
+                addLog('info', 'Simulation running');
+
+                // 更新按钮状态
+                startBtn.disabled = true;
+                stopBtn.disabled = false;
+
+                // 获取仿真状态
+                const state = Module.ccall('getSimulationState', 'number', [], []);
+                addLog('info', `Simulation state: ${state}`);
+            } catch (error) {
+                showStatus('error', `Error: ${error.message}`);
+                addLog('error', `Exception: ${error.message}`);
+                console.error(error);
+            }
+        });
+
+        // 停止仿真
+        stopBtn.addEventListener('click', () => {
+            if (!Module) {
+                showStatus('error', 'WASM module not loaded');
+                return;
+            }
+
+            showStatus('loading', 'Stopping simulation...');
+            addLog('info', 'Stopping simulation...');
+
+            try {
+                stopAnimationLoop();
+
+                Module.ccall('stopSimulation', null, [], []);
+
+                showStatus('success', 'Simulation stopped');
+                addLog('info', 'Simulation stopped');
+
+                startBtn.disabled = false;
+                stopBtn.disabled = true;
+
+                updateSimulationInfo();
+            } catch (error) {
+                showStatus('error', `Error: ${error.message}`);
+                addLog('error', `Exception: ${error.message}`);
+                console.error(error);
+            }
+        });
+
+        function showStatus(type, message) {
+            const status = document.getElementById('status');
+            status.className = `status ${type} show`;
+            status.textContent = message;
+        }
+
+        function addLog(type, message) {
+            const log = document.getElementById('log');
+            log.classList.add('show');
+
+            const time = new Date().toLocaleTimeString();
+            const logLine = document.createElement('div');
+            logLine.className = 'log-line';
+            logLine.innerHTML = `<span class="log-time">[${time}]</span> <span class="log-${type}">${message}</span>`;
+
+            log.appendChild(logLine);
+            log.scrollTop = log.scrollHeight;
+        }
+
+        initWasm();
+    </script>
+</body>
+</html>
