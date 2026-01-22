@@ -1,6 +1,6 @@
 {
-	"name": "simulation-with-Simulide",
-	"uuid": "da6f02cde1cd4384abe56140588973be",
+	"name": "simulation-with-simulide",
+	"uuid": "da6f02cde1cd4384abe56140588973b1",
 	"displayName": "Simulide 仿真引擎",
 	"description": "嘉立创EDA & EasyEDA 专业版 Simulide 仿真引擎",
 	"version": "1.0.0",
@@ -26,11 +26,11 @@
 	"headerMenus": {
 		"sch": [
 			{
-				"id": "API SDK",
-				"title": "API SDK",
+				"id": "Simulide",
+				"title": "Simulide",
 				"menuItems": [
 					{
-						"id": "RunNgspice",
+						"id": "Simulide",
 						"title": "Simulide",
 						"registerFn": "Simulide"
 					}

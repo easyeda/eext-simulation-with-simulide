@@ -1,5 +1,8 @@
-const SIMULIDE_JS = 'output/lceda-pro-sim-server.js';
-const SIMULIDE_WASM = 'output/lceda-pro-sim-server.wasm';
+import embeddedSimulideWasmBase64 from '../wasm/lceda-pro-sim-server.wasm';
+import simulideScriptText from '../wasm/lceda-pro-sim-server.js?raw';
+
+const SIMULIDE_JS = 'wasm/lceda-pro-sim-server.js';
+const SIMULIDE_WASM = 'wasm/lceda-pro-sim-server.wasm';
 const DEBUG = true;
 
 type CCallReturnType = 'number' | 'string' | 'boolean' | 'array' | 'null' | null;
@@ -50,13 +53,15 @@ type SimEventType =
 	| 'SESSION_STOP'
 	| 'SPEED_SET'
 	| 'COMPONENT_UPDATE';
-type SimualtionPushEvent= 
-	| 'SESSION_STATE'
-	| 'STREAM_DATA'
 
 type CircuitPayload = {
 	filename?: string;
 	content?: string;
+};
+type ComponentUpdatePayload = {
+	updateCirId?: string;
+	attrInput?: string;
+	updateValue?: string;
 };
 
 const SimState = {
@@ -96,6 +101,21 @@ function resolveUrl(path: string): string {
 	return path;
 }
 
+function base64ToBytes(data: string): Uint8Array {
+	if (typeof atob === 'function') {
+		const binary = atob(data);
+		const bytes = new Uint8Array(binary.length);
+		for (let i = 0; i < binary.length; i++) {
+			bytes[i] = binary.charCodeAt(i);
+		}
+		return bytes;
+	}
+	if (typeof Buffer !== 'undefined') {
+		return new Uint8Array(Buffer.from(data, 'base64'));
+	}
+	throw new Error('No base64 decoder available');
+}
+
 async function getExtensionFile(path: string): Promise<File | undefined> {
 	const sysFs = (globalThis as any)?.eda?.sys_FileSystem;
 	if (!sysFs?.getExtensionFile) {
@@ -117,10 +137,35 @@ async function readExtensionBinary(path: string): Promise<Uint8Array | undefined
 	return new Uint8Array(buf);
 }
 
+async function readExtensionText(path: string): Promise<string | undefined> {
+	const file = await getExtensionFile(path);
+	if (!file) {
+		return undefined;
+	}
+	return await file.text();
+}
+
+function createModuleImportUrl(source: string): string {
+	const blob = new Blob([source], { type: 'text/javascript' });
+	return URL.createObjectURL(blob);
+}
+
 async function loadSimulideFactory(): Promise<(opts?: any) => Promise<SimulideModule>> {
-	const url = resolveUrl(SIMULIDE_JS);
-	debugLog('Loading simulide module', url);
-	const mod = await import(/* @vite-ignore */ url);
+	const inlineScript = simulideScriptText || (await readExtensionText(SIMULIDE_JS));
+	if (!inlineScript) {
+		const url = resolveUrl(SIMULIDE_JS);
+		debugLog('Loading simulide module', url);
+		const mod = await import(/* @vite-ignore */ url);
+		const factory = mod?.default ?? mod;
+		if (typeof factory !== 'function') {
+			throw new TypeError('Simulide module factory not found');
+		}
+		return factory as (opts?: any) => Promise<SimulideModule>;
+	}
+	const blobUrl = createModuleImportUrl(inlineScript);
+	debugLog('Loading simulide module from inline script');
+	const mod = await import(/* @vite-ignore */ blobUrl);
+	URL.revokeObjectURL(blobUrl);
 	const factory = mod?.default ?? mod;
 	if (typeof factory !== 'function') {
 		throw new TypeError('Simulide module factory not found');
@@ -135,7 +180,9 @@ async function ensureSimulideLoaded(): Promise<SimulideModule> {
 	if (!modulePromise) {
 		modulePromise = (async () => {
 			const factory = await loadSimulideFactory();
-			const wasmBinary = await readExtensionBinary(SIMULIDE_WASM);
+			const wasmBinary
+				= (await readExtensionBinary(SIMULIDE_WASM))
+				?? (embeddedSimulideWasmBase64 ? base64ToBytes(embeddedSimulideWasmBase64) : undefined);
 			const Module = await factory({
 				wasmBinary,
 				locateFile: (path: string) => resolveUrl(path),
@@ -292,13 +339,11 @@ export function activate(status?: 'onStartupFinished', arg?: string): void {
 						try {
 							cachedModule?._stepSimulation();
 							const data = await getSimulationData();
-						eda.SCH_SimulationEngine.pushData()
 							debugLog('getSimulationData', data);
 						} catch (e) {
 							debugLog('initial simulation step failed', e);
 						}
 						debugLog('startSimulation done');
-					
 						break;
 					}
 					case 'SESSION_PAUSE':
@@ -336,8 +381,3 @@ export async function readSimulationDataOnce(): Promise<void> {
 	const json = await getSimulationData();
 	debugLog('getSimulationData', json);
 }
-type ComponentUpdatePayload = {
-	updateCirId?: string;
-	attrInput?: string;
-	updateValue?: string;
-};
