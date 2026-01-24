@@ -3,6 +3,8 @@
 #include "itemlibrary.h"
 #include "meter.h"
 #include "pch.h"
+#include <cstdio>
+#include <cstring>
 
 
 #ifdef __EMSCRIPTEN__
@@ -23,6 +25,24 @@ bool startsWithWire(const std::string &str) {
 }
 
 #ifdef __EMSCRIPTEN__
+static void logInfo(const char* msg) {
+    emscripten_log(EM_LOG_CONSOLE, "%s", msg);
+}
+
+static void logError(const char* msg) {
+    emscripten_log(EM_LOG_ERROR, "%s", msg);
+}
+#else
+static void logInfo(const char* msg) {
+    std::printf("[simulide][info] %s\n", msg);
+}
+
+static void logError(const char* msg) {
+    std::fprintf(stderr, "[simulide][error] %s\n", msg);
+}
+#endif
+
+#ifdef __EMSCRIPTEN__
 extern "C" {
 #endif
 
@@ -30,15 +50,26 @@ extern "C" {
 EMSCRIPTEN_KEEPALIVE
 int loadCircuitFromFile(const char* filename, const char* fileContent) {
     try {
+        if (!filename) {
+            logError("loadCircuitFromFile: filename is null");
+        }
         if (!fileContent) {
+            logError("loadCircuitFromFile: fileContent is null");
             return -1; // Error: null content
         }
+        std::printf("[simulide][info] loadCircuitFromFile: filename=%s, size=%zu\n",
+            filename ? filename : "(null)", std::strlen(fileContent));
         g_circuit = new Circuit(std::string(fileContent));
         g_simulator = g_circuit->m_simulator; 
+        logInfo("loadCircuitFromFile: circuit created");
 
         return 0; // Success
     } catch (const std::exception& e) {
+        std::fprintf(stderr, "[simulide][error] loadCircuitFromFile exception: %s\n", e.what());
         return -2; // Error: exception during load
+    } catch (...) {
+        logError("loadCircuitFromFile: unknown exception");
+        return -2;
     }
 }
 
@@ -46,7 +77,10 @@ int loadCircuitFromFile(const char* filename, const char* fileContent) {
 EMSCRIPTEN_KEEPALIVE
 void startSimulation() {
     if (g_simulator) {
+        logInfo("startSimulation");
         g_simulator->startSim();
+    } else {
+        logError("startSimulation: g_simulator is null");
     }
 }
 
@@ -54,7 +88,10 @@ void startSimulation() {
 EMSCRIPTEN_KEEPALIVE
 void stopSimulation() {
     if (g_simulator) {
+        logInfo("stopSimulation");
         g_simulator->stopSim();
+    } else {
+        logError("stopSimulation: g_simulator is null");
     }
 }
 
@@ -62,7 +99,10 @@ void stopSimulation() {
 EMSCRIPTEN_KEEPALIVE
 void pauseSimulation() {
     if (g_simulator) {
+        logInfo("pauseSimulation");
         g_simulator->pauseSim();
+    } else {
+        logError("pauseSimulation: g_simulator is null");
     }
 }
 
@@ -70,7 +110,10 @@ void pauseSimulation() {
 EMSCRIPTEN_KEEPALIVE
 void resumeSimulation() {
     if (g_simulator) {
+        logInfo("resumeSimulation");
         g_simulator->resumeSim();
+    } else {
+        logError("resumeSimulation: g_simulator is null");
     }
 }
 
@@ -78,8 +121,10 @@ void resumeSimulation() {
 EMSCRIPTEN_KEEPALIVE
 int getSimulationState() {
     if (g_simulator) {
-        return g_simulator->simState();
+        const int state = g_simulator->simState();
+        return state;
     }
+    logError("getSimulationState: g_simulator is null");
     return 0; 
 }
 
@@ -87,7 +132,10 @@ int getSimulationState() {
 EMSCRIPTEN_KEEPALIVE
 void setSimulationSpeed(int speed) {
     if (g_simulator) {
+        std::printf("[simulide][info] setSimulationSpeed: %d\n", speed);
         g_simulator->setSpeed(speed);
+    } else {
+        logError("setSimulationSpeed: g_simulator is null");
     }
 }
 
@@ -97,6 +145,7 @@ double getSimulationTime() {
     if (g_simulator) {
         return g_simulator->circTime();
     }
+    logError("getSimulationTime: g_simulator is null");
     return 0.0;
 }
 
@@ -105,11 +154,22 @@ EMSCRIPTEN_KEEPALIVE
 void stepSimulation() {
     if (g_simulator && g_simulator->simState() == SIM_RUNNING) {
         g_simulator->timerEvent();
+    } else if (!g_simulator) {
+        logError("stepSimulation: g_simulator is null");
     }
 }
 
 EMSCRIPTEN_KEEPALIVE 
 const bool  updateCircuitData(const char* updateCirID ,const char* attrInput ,const char* updateValueStr){
+    if (!g_circuit) {
+        logError("updateCircuitData: g_circuit is null");
+        return false;
+    }
+    if (!updateCirID || !attrInput || !updateValueStr) {
+        logError("updateCircuitData: null input");
+        return false;
+    }
+    std::printf("[simulide][info] updateCircuitData: id=%s attr=%s value=%s\n", updateCirID, attrInput, updateValueStr);
     std::vector<std::string> data{std::string(updateCirID),std::string(attrInput),std::string(updateValueStr)};
     bool result = g_circuit->upDateCmp(data);
     return result;
@@ -119,6 +179,7 @@ const bool  updateCircuitData(const char* updateCirID ,const char* attrInput ,co
 EMSCRIPTEN_KEEPALIVE
 const char* getSimulationData() {
     if (!g_simulator) {
+        logError("getSimulationData: g_simulator is null");
         static std::string empty = "{}";
         return empty.c_str();
     }
@@ -127,10 +188,10 @@ const char* getSimulationData() {
         auto outputData = g_simulator->getOutputData();
         std::ostringstream json;
 
-        json << "{\"meters\":[";
+        json << "{";
+        bool firstEntry = true;
 
         if (outputData.meterData && !outputData.meterData->empty()) {
-            bool firstMeter = true;
             for (const auto* meter : *outputData.meterData) {
                 if (!meter) continue;
 
@@ -140,10 +201,10 @@ const char* getSimulationData() {
 
                 if (dataVec.empty()) continue;
 
-                if (!firstMeter) json << ",";
-                firstMeter = false;
+                if (!firstEntry) json << ",";
+                firstEntry = false;
 
-                json << "{\"id\":\"" << meter->id << "\",\"data\":";
+                json << "\"" << meter->id << "\":";
 
                 if (startsWithWire(meter->id)) {
                     const auto& [timestamp, value] = dataVec.back();
@@ -159,14 +220,10 @@ const char* getSimulationData() {
                     json << "]";
                 }
 
-                json << "}";
             }
         }
 
-        json << "],\"status\":[";
-
         if (outputData.statusData && !outputData.statusData->empty()) {
-            bool firstStatus = true;
             for (const auto* status : *outputData.statusData) {
                 if (!status) continue;
 
@@ -176,25 +233,28 @@ const char* getSimulationData() {
 
                 if (dataVec.empty()) continue;
 
-                if (!firstStatus) json << ",";
-                firstStatus = false;
+                if (!firstEntry) json << ",";
+                firstEntry = false;
 
-                json << "{\"id\":\"" << status->id << "\",\"data\":";
+                json << "\"" << status->id << "\":";
 
                 const auto& [timestamp, value] = dataVec.back();
                 json << "[[" << timestamp << ",\"" << value << "\"]]";
-
-                json << "}";
             }
         }
 
-        json << "]}";
+        json << "}";
 
         static std::string result;
         result = json.str();
         return result.c_str();
 
     } catch (const std::exception& e) {
+        std::fprintf(stderr, "[simulide][error] getSimulationData exception: %s\n", e.what());
+        static std::string error = "{\"error\":\"Failed to get simulation data\"}";
+        return error.c_str();
+    } catch (...) {
+        logError("getSimulationData: unknown exception");
         static std::string error = "{\"error\":\"Failed to get simulation data\"}";
         return error.c_str();
     }

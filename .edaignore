@@ -15,4 +15,4 @@
 /package.json
 /tsconfig.json
 .eslintcache
-debug.log
+/simulide_to_wasm

@@ -76,10 +76,14 @@ const SimState = {
 
 let cachedModule: SimulideModule | null = null;
 let modulePromise: Promise<SimulideModule> | null = null;
-let animationFrameId: number | null = null;
+let stepTimerId: number | null = null;
+let dataTimerId: number | null = null;
 let isSimulationRunning = false;
-let frameCount = 0;
-let lastFpsUpdate = Date.now();
+let simulationSpeed = 50;
+
+const DATA_PUSH_INTERVAL_MS = 20;
+const MIN_STEP_INTERVAL_MS = 5;
+const MAX_STEP_INTERVAL_MS = 100;
 
 function debugLog(message: string, extra?: unknown): void {
 	if (!DEBUG) {
@@ -222,53 +226,84 @@ function extractComponentUpdate(props?: any): ComponentUpdatePayload {
 	};
 }
 
-function stopAnimationLoop(): void {
-	if (animationFrameId !== null && typeof cancelAnimationFrame === 'function') {
-		cancelAnimationFrame(animationFrameId);
+function clampSpeed(speed: number): number {
+	if (!Number.isFinite(speed)) {
+		return 1;
 	}
-	animationFrameId = null;
+	return Math.max(1, Math.min(100, Math.round(speed)));
+}
+
+function speedToIntervalMs(speed: number): number {
+	const s = clampSpeed(speed);
+	const range = MAX_STEP_INTERVAL_MS - MIN_STEP_INTERVAL_MS;
+	const interval = MAX_STEP_INTERVAL_MS - Math.round((range * (s - 1)) / 99);
+	return Math.max(MIN_STEP_INTERVAL_MS, Math.min(MAX_STEP_INTERVAL_MS, interval));
+}
+
+function stopTimers(): void {
+	if (stepTimerId !== null) {
+		clearInterval(stepTimerId);
+		stepTimerId = null;
+	}
+	if (dataTimerId !== null) {
+		clearInterval(dataTimerId);
+		dataTimerId = null;
+	}
 	isSimulationRunning = false;
 }
 
-function startAnimationLoop(): void {
-	if (animationFrameId !== null || typeof requestAnimationFrame !== 'function') {
+function startStepTimer(): void {
+	if (stepTimerId !== null) {
+		clearInterval(stepTimerId);
+	}
+	const interval = speedToIntervalMs(simulationSpeed);
+	stepTimerId = setInterval(() => {
+		if (!cachedModule || !isSimulationRunning) {
+			return;
+		}
+		try {
+			const state = cachedModule._getSimulationState();
+			if (state === SimState.SIM_RUNNING) {
+				cachedModule._stepSimulation();
+			}
+		} catch (e) {
+			stopTimers();
+			debugLog('Simulation step error', e);
+		}
+	}, interval) as unknown as number;
+}
+
+function startDataTimer(): void {
+	if (dataTimerId !== null) {
+		clearInterval(dataTimerId);
+	}
+	dataTimerId = setInterval(() => {
+		if (!cachedModule || !isSimulationRunning) {
+			return;
+		}
+		try {
+			const state = cachedModule._getSimulationState();
+			if (state !== SimState.SIM_RUNNING) {
+				return;
+			}
+			const dataJson = cachedModule.ccall('getSimulationData', 'string', [], []);
+			if (dataJson && dataJson.trim() !== '{}') {
+				eda.sch_SimulationEngine.pushData('STREAM_DATA', dataJson);
+			}
+		} catch (e) {
+			stopTimers();
+			debugLog('Simulation data error', e);
+		}
+	}, DATA_PUSH_INTERVAL_MS) as unknown as number;
+}
+
+function startTimers(): void {
+	if (isSimulationRunning) {
 		return;
 	}
 	isSimulationRunning = true;
-	frameCount = 0;
-	lastFpsUpdate = Date.now();
-	animationFrameId = requestAnimationFrame(simulationLoop);
-}
-
-async function simulationLoop(): Promise<void> {
-	if (!cachedModule || !isSimulationRunning) {
-		return;
-	}
-	try {
-		const state = cachedModule._getSimulationState();
-		if (state === SimState.SIM_RUNNING) {
-			cachedModule._stepSimulation();
-			if (frameCount % 30 === 0) {
-				const dataJson = cachedModule.ccall('getSimulationData', 'string', [], []);
-				debugLog('Simulation data', dataJson);
-			}
-			frameCount++;
-			const now = Date.now();
-			if (now - lastFpsUpdate >= 1000) {
-				const fps = Math.round(frameCount / ((now - lastFpsUpdate) / 1000));
-				debugLog('Simulation FPS', fps);
-				frameCount = 0;
-				lastFpsUpdate = now;
-			}
-			animationFrameId = requestAnimationFrame(simulationLoop);
-		} else {
-			stopAnimationLoop();
-			debugLog('Simulation loop stopped', state);
-		}
-	} catch (e) {
-		stopAnimationLoop();
-		debugLog('Simulation loop error', e);
-	}
+	startStepTimer();
+	startDataTimer();
 }
 
 async function loadCircuitFromFile(payload: CircuitPayload): Promise<number> {
@@ -281,30 +316,35 @@ async function loadCircuitFromFile(payload: CircuitPayload): Promise<number> {
 async function startSimulation(): Promise<void> {
 	const Module = await ensureSimulideLoaded();
 	Module._startSimulation();
-	startAnimationLoop();
+	startTimers();
 }
 
 async function stopSimulation(): Promise<void> {
 	const Module = await ensureSimulideLoaded();
-	stopAnimationLoop();
+	stopTimers();
 	Module._stopSimulation();
 }
 
 async function pauseSimulation(): Promise<void> {
 	const Module = await ensureSimulideLoaded();
-	stopAnimationLoop();
+	stopTimers();
 	Module._pauseSimulation();
 }
 
 async function resumeSimulation(): Promise<void> {
 	const Module = await ensureSimulideLoaded();
 	Module._resumeSimulation();
-	startAnimationLoop();
+	startTimers();
 }
 
 async function setSimulationSpeed(speed: number): Promise<void> {
 	const Module = await ensureSimulideLoaded();
-	Module._setSimulationSpeed(speed);
+	const nextSpeed = clampSpeed(speed);
+	simulationSpeed = nextSpeed;
+	Module._setSimulationSpeed(nextSpeed);
+	if (isSimulationRunning) {
+		startStepTimer();
+	}
 }
 
 async function updateCircuitData(updateCirId: string, attrInput: string, updateValue: string): Promise<number> {
@@ -334,15 +374,7 @@ export function activate(status?: 'onStartupFinished', arg?: string): void {
 							break;
 						}
 						const result = await loadCircuitFromFile(payload);
-						debugLog('loadCircuitFromFile result', result);
 						await startSimulation();
-						try {
-							cachedModule?._stepSimulation();
-							const data = await getSimulationData();
-							debugLog('getSimulationData', data);
-						} catch (e) {
-							debugLog('initial simulation step failed', e);
-						}
 						debugLog('startSimulation done');
 						break;
 					}

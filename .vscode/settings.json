@@ -75,5 +75,7 @@
 		"TSCH",
 		"tsdoc",
 		"TSYS"
-	]
+	],
+	"C_Cpp.default.compileCommands": "d:/eda/pro-api/eext-simulation-with-simulide/simulide_to_wasm/build-wasm/compile_commands.json",
+	"cmake.ignoreCMakeListsMissing": true,
 }
