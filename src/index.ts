@@ -338,10 +338,8 @@ async function resumeSimulation(): Promise<void> {
 }
 
 async function setSimulationSpeed(speed: number): Promise<void> {
-	const Module = await ensureSimulideLoaded();
 	const nextSpeed = clampSpeed(speed);
 	simulationSpeed = nextSpeed;
-	Module._setSimulationSpeed(nextSpeed);
 	if (isSimulationRunning) {
 		startStepTimer();
 	}
@@ -388,7 +386,8 @@ export function activate(status?: 'onStartupFinished', arg?: string): void {
 						await stopSimulation();
 						break;
 					case 'SPEED_SET': {
-						const speed = Number(props?.speed ?? props?.value ?? 0);
+						const rawSpeed = Number(props?.speed ?? props?.value ?? 0);
+						const speed = clampSpeed(rawSpeed);
 						await setSimulationSpeed(speed);
 						break;
 					}
