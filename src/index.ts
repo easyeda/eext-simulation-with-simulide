@@ -53,7 +53,9 @@ type SimEventType =
 	| 'SESSION_STOP'
 	| 'SPEED_SET'
 	| 'COMPONENT_UPDATE';
-
+enum SimPushEventType {
+  STREAM_DATA = 'STREAM_DATA',
+}
 type CircuitPayload = {
 	filename?: string;
 	content?: string;
@@ -288,7 +290,7 @@ function startDataTimer(): void {
 			}
 			const dataJson = cachedModule.ccall('getSimulationData', 'string', [], []);
 			if (dataJson && dataJson.trim() !== '{}') {
-				eda.sch_SimulationEngine.pushData('STREAM_DATA', dataJson);
+				eda.sch_SimulationEngine.pushData(SimPushEventType.STREAM_DATA, dataJson);
 			}
 		} catch (e) {
 			stopTimers();
