@@ -1,8 +1,8 @@
 {
 	"name": "simulation-with-simulide",
 	"uuid": "da6f02cde1cd4384abe56140588973b1",
-	"displayName": "Simulide 仿真引擎",
-	"description": "嘉立创EDA & EasyEDA 专业版 Simulide 仿真引擎",
+	"displayName": "SimulIDE仿真",
+	"description": "SimulIDE仿真引擎，安装后可以在SimulIDE仿真图页中进行仿真",
 	"version": "1.0.0",
 	"publisher": "",
 	"engines": {
@@ -18,8 +18,8 @@
 	"images": {
 		"logo": "./images/logo.png"
 	},
-	"homepage": "",
-	"bugs": "",
+	"homepage": "https://github.com/easyeda/eext-simulation-with-simulide",
+	"bugs": "https://github.com/easyeda/eext-simulation-with-simulide/issues",
 	"activationEvents": {"onStartupFinished": true},
 	"entry": "./dist/index",
 	"dependentExtensions": {},
@@ -31,7 +31,7 @@
 				"menuItems": [
 					{
 						"id": "Simulide",
-						"title": "Simulide",
+						"title": "SimulIDE仿真",
 						"registerFn": "Simulide"
 					}
 				]
