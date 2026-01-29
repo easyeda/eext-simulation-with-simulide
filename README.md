@@ -8,67 +8,22 @@
 
 ## ✨ 特性
 
-- 🚀 **WebAssembly 编译** - 基于 Emscripten 将 C++ 仿真引擎编译为 WASM，在浏览器中高效运行
+- **WebAssembly 编译** - 基于 Emscripten 将 C++ 仿真引擎编译为 WASM，在浏览器中高效运行
 
-  
+- **实时仿真** - 事件驱动的仿真引擎，支持实时交互和动态元件属性更新
 
-- ⚡ **实时仿真** - 事件驱动的仿真引擎，支持实时交互和动态元件属性更新
+- **丰富的元件库** - 支持 BJT、MOSFET、二极管、电阻、电感、逻辑门、微控制器等多种电路元件
 
-  
+- **EasyEDA 扩展** - 以扩展插件形式集成，通过标准 API 与 EasyEDA 平台通信
 
-- 🔌 **丰富的元件库** - 支持 BJT、MOSFET、二极管、电阻、电感、逻辑门、微控制器等多种电路元件
+- **数据可视化** - JSON 格式的仿真数据输出，实时推送到 EasyEDA 界面
 
-  
+- **高性能** - C++20 编写，O3 优化，提供原生级别的计算性能
 
-- 📦 **EasyEDA 扩展** - 以扩展插件形式集成，通过标准 API 与 EasyEDA 平台通信
+- **跨平台** - 支持 Windows、Linux、macOS 构建和部署
 
-  
+- **可扩展** - 基于事件驱动的插件架构，易于扩展和维护
 
-- 📊 **数据可视化** - JSON 格式的仿真数据输出，实时推送到 EasyEDA 界面
-
-  
-
-- 🎯 **高性能** - C++20 编写，O3 优化，提供原生级别的计算性能
-
-  
-
-- 🌐 **跨平台** - 支持 Windows、Linux、macOS 构建和部署
-
-  
-
-- 🔧 **可扩展** - 基于事件驱动的插件架构，易于扩展和维护
-
-## 📜 开源协议
-
-本项目采用双许可证模式：
-
-1. **原始 Simulide 代码**  
-
-   - 版权归 Santiago González 所有
-
-   - 采用 GNU Affero General Public License v3.0 (AGPLv3) 协议
-
-   - 参见 [copyright.txt](copyright.txt)
-
-2. **修改和新增代码**  
-
-   - 版权归 EasyEDA & JLC Technology Group 所有
-
-   - 采用 GNU General Public License v3.0 (GPLv3) 协议
-
-### 使用要求
-
-- 任何修改后的版本必须同样采用 AGPLv3 + GPLv3 双协议开源
-
-- 如果作为网络服务提供，必须提供源代码（根据 AGPLv3 要求）
-
-- 必须保留所有原始版权声明和许可声明
-
-完整协议内容请查看 [LICENSE](LICENSE) 文件。
-
-## 🔌 扩展系统架构
-
-本项目实现了一个现代化的 EasyEDA 浏览器扩展系统，采用事件驱动架构与 EasyEDA 平台集成。
 
 ### 扩展插件工作原理
 
@@ -92,19 +47,7 @@
 
       - 电路模拟计算
 
-      - 元件状态管理
-
-  ### 扩展生命周期
-
-1. **安装阶段** - 用户安装 `.eext` 扩展包到 EasyEDA
-
-2. **加载阶段** - EasyEDA 读取 `extension.json` 清单文件
-
-3. **激活阶段** - 触发 `onStartupFinished` 事件，调用扩展的 `activate()` 函数
-
-4. **运行阶段** - 扩展监听仿真事件，调用 WASM 引擎，推送仿真数据
-
-5. **卸载阶段** - 用户卸载扩展，清理所有事件监听器和资源  
+      - 元件状态管理 
 
 ## 📦 前置要求
 
@@ -276,94 +219,6 @@ npm run build
 
 扩展打包为 `.eext` 文件，可通过 LCEDA菜单选项中的高级选项 => 扩展管理器安装。
 
-## 📂 项目结构
-
-```text
-
-sim_eda/
-
-├── src/                          # TypeScript 扩展源代码
-
-│   ├── index.ts                  # 扩展主入口，事件监听器注册
-
-│   └── assets.d.ts               # 资源文件类型定义
-
-├── simulide_to_wasm/            # C++ 仿真引擎
-
-│   ├── src/
-
-│   │   ├── server.cpp           # WASM 模块入口点
-
-│   │   ├── cirSim/              # 电路仿真模块
-
-│   │   │   ├── include/         # 头文件
-
-│   │   │   └── src/             # 源文件
-
-│   │   └── public/              # 公共接口
-
-│   ├── config/                  # 运行时配置数据（嵌入WASM）
-
-│   ├── external/                # 第三方依赖
-
-│   ├── output/                  # 编译输出目录
-
-│   ├── CMakeLists.txt          # CMake 构建配置
-
-│   ├── build-wasm.sh/.bat      # WASM 构建脚本
-
-│   ├── serve.py                # 本地测试服务器
-
-│   └── test.html               # 浏览器测试页面
-
-├── wasm/                        # 编译好的 WASM 文件
-
-│   ├── lceda-pro-sim-server.js # JavaScript 胶水代码 (108KB)
-
-│   └── lceda-pro-sim-server.wasm # WASM 二进制 (21MB)
-
-├── build/                       # 构建工具
-
-│   └── packaged.ts             # 扩展打包脚本
-
-├── config/                      # 构建配置
-
-│   ├── esbuild.common.ts       # ESBuild 配置（含自定义插件）
-
-│   └── esbuild.prod.ts         # 生产构建脚本
-
-├── locales/                     # 国际化资源
-
-│   ├── en.json                 # 英文翻译
-
-│   ├── zh-Hans.json            # 简体中文翻译
-
-│   └── extensionJson/          # 扩展清单多语言
-
-├── iframe/                      # 嵌入式 iframe 内容
-
-├── images/                      # 扩展资源（图标等）
-
-├── dist/                        # TypeScript 编译输出（自动生成）
-
-├── extension.json              # 扩展清单文件
-
-├── package.json                # NPM 配置
-
-├── tsconfig.json               # TypeScript 配置
-
-├── .edaignore                  # 打包忽略文件列表
-
-├── README.md                   # 项目文档
-
-├── CHANGELOG.md                # 版本历史
-
-├── LICENSE                     # 开源许可证
-
-└── copyright.txt               # 版权声明
-
-```
-
 ## 🛠️ 构建步骤
 
 本项目分为两个独立的构建流程：
@@ -464,161 +319,47 @@ http://localhost:8080/test.html
 
    - 点击 "Stop Simulation" 停止仿真
 
-### 4. API 使用示例
 
-#### WASM 模块 API
+## 📜 开源协议
 
-在独立应用中使用 WASM 模块：
+本项目采用双许可证模式：
 
-```javascript
+1. **原始 Simulide 代码**  
 
-// 1. 导入 WASM 模块
-import wasmModule from './wasm/lceda-pro-sim-server.js';
+   - 版权归 Santiago González 所有
 
-// 2. 初始化
-const Module = await wasmModule();
+   - 采用 GNU Affero General Public License v3.0 (AGPLv3) 协议
 
-// 3. 加载电路
-const result = Module.ccall(
-    'loadCircuitFromFile',
-    'number',
-    ['string', 'string'],
-    [fileName, fileContent]
-);
+   - 参见 [copyright.txt](copyright.txt)
 
-// 4. 启动仿真
-Module.ccall('startSimulation', null, [], []);
+2. **修改和新增代码**  
 
-// 5. 获取仿真状态
-const state = Module.ccall('getSimulationState', 'number', [], []);
+   - 版权归 EasyEDA & JLC Technology Group 所有
 
-// 6. 获取仿真数据（JSON 格式）
-const dataJson = Module.ccall('getSimulationData', 'string', [], []);
+   - 采用 GNU General Public License v3.0 (GPLv3) 协议
 
-const data = JSON.parse(dataJson);
-  
-// 7. 单步执行仿真
-Module._stepSimulation();
+### 使用要求
 
-// 8. 获取仿真时间
-const time = Module._getSimulationTime();  // 单位：皮秒 (ps)
+- 任何修改后的版本必须同样采用 AGPLv3 + GPLv3 双协议开源
 
-// 9. 停止仿真
-Module.ccall('stopSimulation', null, [], []);
+- 如果作为网络服务提供，必须提供源代码（根据 AGPLv3 要求）
 
-```
+- 必须保留所有原始版权声明和许可声明
 
-#### EasyEDA 扩展 API
-
-在 EasyEDA 扩展中使用平台 API：
-
-```typescript
-
-// 扩展激活入口
-
-export function activate(status?: 'onStartupFinished', arg?: string): void {
-    if (status === 'onStartupFinished') {
-
-        // 注册仿真引擎事件监听器
-        eda.sch_Event.addSimulationEnginePullEventListener(
-            'sim-engine-monitor',
-            'all',
-            handleSimulationEvent
-        );
-    }
-}
-
-// 事件处理函数
-async function handleSimulationEvent(
-    eventType: SimEventType,
-    props: any
-): Promise<void> {
-    switch (eventType) {
-        case 'SESSION_START':
-            // 加载电路并启动仿真
-            await loadCircuit(props.fileContent);
-            await startSimulation();
-            break;
-        case 'SESSION_PAUSE':
-            await pauseSimulation();
-            break;
-        case 'SESSION_RESUME':
-            await resumeSimulation();
-            break;
-        case 'SESSION_STOP':
-            await stopSimulation();
-            break;
-        case 'SPEED_SET':
-            setSimulationSpeed(props.speed);
-            break;
-        case 'COMPONENT_UPDATE':
-            await updateComponent(props.id, props.attr, props.value);
-            break;
-    }
-}
-
-// 推送仿真数据到平台
-function pushSimulationData(data: SimulationData): void {
-    eda.sch_SimulationEngine.pushData(
-        SimPushEventType.STREAM_DATA,
-        JSON.stringify(data)
-    );
-}
-
-// 获取扩展文件（如 WASM 文件）
-async function getWasmFile(): Promise<File | undefined> {
-    return eda.sys_FileSystem.getExtensionFile('/wasm/lceda-pro-sim-server.wasm');
-}
-
-```
+完整协议内容请查看 [LICENSE](LICENSE) 文件。
 
 ## 🙏 致谢
 
-  
-
 - **SimulIDE 项目** ([simulide.com](https://simulide.com/p/)) - 感谢提供优秀的电路仿真引擎
-
-  
 
 - **Emscripten 团队** - 让 C++ 代码能够在浏览器中运行
 
-  
-
 - 所有项目贡献者和开源社区的支持
-
-  
-
-  
 
 ## 📚 相关资源
 
-  
-  
-
 - [SimulIDE 官方网站](https://simulide.com/)
-
-  
 
 - [WebAssembly 官方文档](https://webassembly.org/)
 
-  
-
 - [Emscripten 文档](https://emscripten.org/docs/)
-
-  
-  
-
-## 📄 许可证
-
-  
-  
-
-本项目采用双许可证模式，详见 [LICENSE](LICENSE) 文件：
-
-  
-
-- 原始 SimulIDE 代码: AGPLv3
-
-  
-
-- 修改和新增代码: GPLv3
