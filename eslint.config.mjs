@@ -16,5 +16,5 @@ export default antfu({
 		'unused-imports/no-unused-vars': 'off',
 	},
 
-	ignores: ['build/dist/', 'coverage/', 'dist/', 'node_modules/', '.eslintcache', 'debug.log', 'wasm/','simulide_to_wasm/'],
+	ignores: ['build/dist/', 'coverage/', 'dist/', 'node_modules/', '.eslintcache', 'README.md', 'wasm/', 'simulide_to_wasm/'],
 });

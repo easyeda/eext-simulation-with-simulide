@@ -1,5 +1,5 @@
-import embeddedSimulideWasmBase64 from '../wasm/lceda-pro-sim-server.wasm';
 import simulideScriptText from '../wasm/lceda-pro-sim-server.js?raw';
+import embeddedSimulideWasmBase64 from '../wasm/lceda-pro-sim-server.wasm';
 
 const SIMULIDE_JS = 'wasm/lceda-pro-sim-server.js';
 const SIMULIDE_WASM = 'wasm/lceda-pro-sim-server.wasm';
@@ -7,7 +7,7 @@ const DEBUG = true;
 
 type CCallReturnType = 'number' | 'string' | 'boolean' | 'array' | 'null' | null;
 
-type SimulideModule = {
+interface SimulideModule {
 	ccall: (ident: string, returnType: CCallReturnType, argTypes: string[], args: any[]) => any;
 	_loadCircuitFromFile: (filenamePtr: number, contentPtr: number) => number;
 	_startSimulation: () => void;
@@ -44,27 +44,27 @@ type SimulideModule = {
 	__indirect_function_table: WebAssembly.Table;
 	wasmMemory?: WebAssembly.Memory;
 	wasmTable?: WebAssembly.Table;
-};
-
-type SimEventType =
-	| 'SESSION_START'
-	| 'SESSION_PAUSE'
-	| 'SESSION_RESUME'
-	| 'SESSION_STOP'
-	| 'SPEED_SET'
-	| 'COMPONENT_UPDATE';
-enum SimPushEventType {
-  STREAM_DATA = 'STREAM_DATA',
 }
-type CircuitPayload = {
+
+type SimEventType
+	= | 'SESSION_START'
+		| 'SESSION_PAUSE'
+		| 'SESSION_RESUME'
+		| 'SESSION_STOP'
+		| 'SPEED_SET'
+		| 'COMPONENT_UPDATE';
+enum SimPushEventType {
+	STREAM_DATA = 'STREAM_DATA',
+}
+interface CircuitPayload {
 	filename?: string;
 	content?: string;
-};
-type ComponentUpdatePayload = {
+}
+interface ComponentUpdatePayload {
 	updateCirId?: string;
 	attrInput?: string;
 	updateValue?: string;
-};
+}
 
 const SimState = {
 	SIM_STOPPED: 0,
@@ -81,7 +81,6 @@ let modulePromise: Promise<SimulideModule> | null = null;
 let stepTimerId: number | null = null;
 let dataTimerId: number | null = null;
 let isSimulationRunning = false;
-let simulationSpeed = 50;
 
 const DATA_PUSH_INTERVAL_MS = 20;
 const MIN_STEP_INTERVAL_MS = 5;
@@ -93,7 +92,8 @@ function debugLog(message: string, extra?: unknown): void {
 	}
 	if (extra !== undefined) {
 		console.log(`[simulide][debug] ${message}`, extra);
-	} else {
+	}
+	else {
 		console.log(`[simulide][debug] ${message}`);
 	}
 }
@@ -103,7 +103,8 @@ function resolveUrl(path: string): string {
 		if (typeof window !== 'undefined' && window.location?.href) {
 			return new URL(path, window.location.href).toString();
 		}
-	} catch {}
+	}
+	catch {}
 	return path;
 }
 
@@ -188,7 +189,7 @@ async function ensureSimulideLoaded(): Promise<SimulideModule> {
 			const factory = await loadSimulideFactory();
 			const wasmBinary
 				= (await readExtensionBinary(SIMULIDE_WASM))
-				?? (embeddedSimulideWasmBase64 ? base64ToBytes(embeddedSimulideWasmBase64) : undefined);
+					?? (embeddedSimulideWasmBase64 ? base64ToBytes(embeddedSimulideWasmBase64) : undefined);
 			const Module = await factory({
 				wasmBinary,
 				locateFile: (path: string) => resolveUrl(path),
@@ -198,7 +199,8 @@ async function ensureSimulideLoaded(): Promise<SimulideModule> {
 			try {
 				const version = Module.ccall('getVersion', 'string', [], []);
 				debugLog('Simulide version', version);
-			} catch (e) {
+			}
+			catch (e) {
 				debugLog('Simulide version read failed', e);
 			}
 			return Module;
@@ -258,7 +260,6 @@ function startStepTimer(): void {
 	if (stepTimerId !== null) {
 		clearInterval(stepTimerId);
 	}
-	const interval = speedToIntervalMs(simulationSpeed);
 	stepTimerId = setInterval(() => {
 		if (!cachedModule || !isSimulationRunning) {
 			return;
@@ -268,11 +269,12 @@ function startStepTimer(): void {
 			if (state === SimState.SIM_RUNNING) {
 				cachedModule._stepSimulation();
 			}
-		} catch (e) {
+		}
+		catch (e) {
 			stopTimers();
 			debugLog('Simulation step error', e);
 		}
-	}, interval) as unknown as number;
+	}, DATA_PUSH_INTERVAL_MS) as unknown as number;
 }
 
 function startDataTimer(): void {
@@ -292,7 +294,8 @@ function startDataTimer(): void {
 			if (dataJson && dataJson.trim() !== '{}') {
 				eda.sch_SimulationEngine.pushData(SimPushEventType.STREAM_DATA, dataJson);
 			}
-		} catch (e) {
+		}
+		catch (e) {
 			stopTimers();
 			debugLog('Simulation data error', e);
 		}
@@ -340,10 +343,9 @@ async function resumeSimulation(): Promise<void> {
 }
 
 async function setSimulationSpeed(speed: number): Promise<void> {
-	const nextSpeed = clampSpeed(speed);
-	simulationSpeed = nextSpeed;
+	const Module = await ensureSimulideLoaded();
 	if (isSimulationRunning) {
-		startStepTimer();
+		Module._setSimulationSpeed(speed);
 	}
 }
 
@@ -389,8 +391,7 @@ export function activate(status?: 'onStartupFinished', arg?: string): void {
 						break;
 					case 'SPEED_SET': {
 						const rawSpeed = Number(props?.speed ?? props?.value ?? 0);
-						const speed = clampSpeed(rawSpeed);
-						await setSimulationSpeed(speed);
+						await setSimulationSpeed(rawSpeed);
 						break;
 					}
 					case 'COMPONENT_UPDATE': {

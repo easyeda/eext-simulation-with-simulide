@@ -235,6 +235,8 @@ npm run build
 
    ```bash
 
+   npm install 
+
    npm run build 
 
    ```
