@@ -1,12 +1,12 @@
 {
 	"name": "simulation-with-simulide",
 	"uuid": "da6f02cde1cd4384abe56140588973b1",
-	"displayName": "SimulIDE仿真",
+	"displayName": "SimulIDE仿真引擎",
 	"description": "SimulIDE仿真引擎，安装后可以在SimulIDE仿真图页中进行仿真",
 	"version": "1.0.0",
 	"publisher": "",
 	"engines": {
-		"eda": "^3.0.0"
+		"eda": "^3.3.0"
 	},
 	"license": "Simulide License (Modified BSD)",
 	"repository": {
@@ -27,12 +27,17 @@
 		"sch": [
 			{
 				"id": "Simulide",
-				"title": "Simulide",
+				"title": "SimulIDE仿真引擎",
 				"menuItems": [
 					{
-						"id": "Simulide",
-						"title": "SimulIDE仿真",
-						"registerFn": "Simulide"
+						"id": "help",
+						"title": "SimulIDE仿真教程...",
+						"registerFn": "about"
+					},
+					{
+						"id": "about",
+						"title": "关于...",
+						"registerFn": "about"
 					}
 				]
 			}
