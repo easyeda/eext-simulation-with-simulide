@@ -2,6 +2,8 @@
 
 # eext-simulation-with-simulide
 
+[English](./README.en.md)
+
 基于 SimulIDE 引擎的 WebAssembly 电路仿真工具，为 EasyEDA 专业版（嘉立创EDA专业版）提供强大的浏览器端电路仿真能力。
 
 本项目是一个 EasyEDA 扩展插件，将 SimulIDE 的 C++ 仿真引擎编译为 WebAssembly，实现了在浏览器中进行实时电路仿真的功能。
