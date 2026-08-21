@@ -527,47 +527,36 @@ void Circuit::loadStrDoc( std::string doc )
                     else if (name == "endpinid") endpinid = val;
                     //else if (name == "uid") uid = val;
                 }
+                // 按引脚 id 查找引脚，找不到返回 nullptr。
+                auto findPin = [&]( std::unordered_map<std::string, Pin*>& map,
+                                    const std::string& id ) -> Pin* {
+                    auto it = map.find( id );
+                    return (it != map.end()) ? it->second : nullptr;
+                };
                 if (m_redo)
                 {
-                    try{
-                        startpin = m_pinMap.at(startpinid);
-                        endpin = m_pinMap.at(endpinid);
-                    } catch (const std::out_of_range& e){
-                        std::cerr << "The pinid of " << startpinid + " or " +  endpinid << " does not exist !" << std::endl;
-                    }
-
+                    startpin = findPin( m_pinMap, startpinid );
+                    endpin   = findPin( m_pinMap, endpinid );
+                    if( !startpin || !endpin )
+                        std::cout << "The pinid of " << startpinid << " or " << endpinid << " does not exist !" << std::endl;
                 }
-                else 
+                else
                 {
-                    try{
-                        startpin = m_LdPinMap.at(startpinid);
-                        endpin = m_LdPinMap.at(endpinid);
-                    } catch (const std::out_of_range& e){
-                        std::cerr << "The pinid of " << startpinid + " or " +  endpinid << " does not exist !" << std::endl;
-                    }
+                    startpin = findPin( m_LdPinMap, startpinid );
+                    endpin   = findPin( m_LdPinMap, endpinid );
+                    if( !startpin || !endpin )
+                        std::cout << "The pinid of " << startpinid << " or " << endpinid << " does not exist !" << std::endl;
                 }
                 // 通过 ID 在电路中查找引脚
                 if (!startpin)
                 {
-                    try
-                    {
-                        startpin = m_pinMap.at(startpinid);
-                    }
-                    catch (const std::out_of_range& e)
-                    {
-                        std::cerr << "The startpinid of " << startpinid << " does not exist !" << std::endl;
-                    }
+                    startpin = findPin( m_pinMap, startpinid );
+                    if( !startpin ) std::cout << "The startpinid of " << startpinid << " does not exist !" << std::endl;
                 }
                 if (!endpin)
                 {
-                    try
-                    {
-                        endpin = m_pinMap.at(endpinid);
-                    }
-                    catch (const std::out_of_range& e)
-                    {
-                        std::cerr << "The endpinid of " << endpinid << " does not exist !" << std::endl;
-                    }
+                    endpin = findPin( m_pinMap, endpinid );
+                    if( !endpin ) std::cout << "The endpinid of " << endpinid << " does not exist !" << std::endl;
                 }
                 // 如果找到的起始引脚已经有连接器，将其设置为 NULL
                 if (startpin && startpin->connector()) startpin = nullptr;

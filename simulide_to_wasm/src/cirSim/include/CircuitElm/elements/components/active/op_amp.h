@@ -33,7 +33,7 @@ class OpAmp : public Component, public eElement
 
         // 获取和设置增益
         double gain() { return m_gain; }
-        void setGain( double g ) { m_gain = g; m_changed = true; }
+        void setGain( double g );
 
         // 获取和设置输出阻抗
         double outImp() { return m_outImp; }
@@ -63,9 +63,8 @@ class OpAmp : public Component, public eElement
         bool m_powerPins;   // 电源引脚状态
         bool m_switchPins;  // 引脚切换状态
 
-        double m_accuracy;  // 精度
         double m_gain;      // 增益
-        double m_k;         // 一个常数，具体作用视实现而定
+        double m_effectiveGain; // 工作点求解期间使用的续接增益
         double m_voltPos;   // 正输入电压
         double m_voltNeg;   // 负输入电压
         double m_voltPosDef;// 默认正输入电压
@@ -73,6 +72,10 @@ class OpAmp : public Component, public eElement
         double m_lastOut;   // 上次输出电压
         double m_lastIn;    // 上次输入电压
         double m_outImp;    // 输出阻抗
+        double m_lastSlope;
+        double m_lastIntercept;
+        int m_lastRegion;        // -1：负电源轨，0：线性区，1：正电源轨
+        uint64_t m_lastModelTime;
 
         IoPin* m_inputP;    // 正输入引脚
         IoPin* m_inputN;    // 负输入引脚

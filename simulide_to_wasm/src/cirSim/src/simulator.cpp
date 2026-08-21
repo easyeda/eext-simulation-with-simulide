@@ -56,7 +56,7 @@ Simulator::Simulator()
     Meter* meter = nullptr;      //创建电压探针
 
     resetSim();  //调用 resetSim 方法来重置仿真环境，准备开始新的仿真。
-    //CircuitWidget::self()->setMsg( " "+tr("Stopped")+" ", 1 ); //调用 CircuitWidget 的 setMsg 方法来设置初始状态消息，通常显示为"Stopped"，表示仿真尚未开始。
+    //CircuitWidget::self()->setMsg( " "+tr("Stopped")+" ", 1 ); //调用 CircuitWidget 的 setMsg 方法来设置初始状态消息，通常显示为“Stopped”，表示仿真尚未开始。
 #ifndef __EMSCRIPTEN__
     m_startTime = std::chrono::high_resolution_clock::now(); // 开始时间
 #endif
@@ -118,30 +118,31 @@ void Simulator::timerEvent()  //update at m_timerTick_ms rate (50 ms, 20 Hz max)
         }
         return;
     }
-    
-    if( m_warning > 0 )
+
+    int warning = m_warning.load();
+    if( warning > 0 )
     {
-        int type = (m_warning < 100)? 1:2;
-        //CircuitWidget::self()->setMsg( m_warnings.value( m_warning), type );
-        std::cerr << m_warnings[m_warning] << std::endl;
-        m_warning = -10;
+        // 仅在警告值未被求解线程更新时进入冷却，避免覆盖更新的警告。
+        if( m_warning.compare_exchange_strong( warning, -10 ) )
+        {
+            int type = (warning < 100)? 1:2;
+            //CircuitWidget::self()->setMsg( m_warnings.value( warning), type );
+            std::cerr << m_warnings[warning] << std::endl;
+        }
     }
-    else if( m_warning < 0 )
+    else if( warning < 0 )
     {
-        if (++m_warning == 0) std::cout << "Running" << std::endl;
+        const int nextWarning = warning+1;
+        if( m_warning.compare_exchange_strong( warning, nextWarning )
+         && nextWarning == 0 )
+            std::cout << "Running" << std::endl;
     }
 
-     //如果电路的并行线程尚未完成，等待它完成
+     // 如果上一轮电路任务尚未完成，等待它完成。
      {
         std::lock_guard<std::mutex> lock(simStateMutex);
 #ifndef __EMSCRIPTEN__
-        if (m_CircuitFuture.valid() && m_state != SIM_WAITING)
-        {
-            simState_t state = m_state;
-            m_state = SIM_WAITING;
-            m_CircuitFuture.wait(); // 等待异步任务完成
-            m_state = state;
-        }
+        if( m_CircuitFuture.valid() ) m_CircuitFuture.wait();
 #endif
      }
 
@@ -181,6 +182,8 @@ void Simulator::timerEvent()  //update at m_timerTick_ms rate (50 ms, 20 Hz max)
 
 void Simulator::runCircuit()
 {
+    // 求解期间独占快照锁，避免诊断线程读到矩阵迭代一半的临时节点电压。
+    std::lock_guard<std::mutex> snapshotLock( m_snapshotMutex );
 
     //std::cout << "circuit running" << std::endl;
     int currentCount = 0;
@@ -202,7 +205,7 @@ void Simulator::runCircuit()
         uint64_t nextTime;                          //存储下一个事件的时间戳。
 
         //模拟器的事件循环。
-        while( event )                              
+        while( event )
         {
             //std::cout << "im  here" << std::endl;
             if( event->eventTime > endRun ) break;      // 如果当前事件的时间戳超过了运行结束时间 endRun，则跳出循环
@@ -216,7 +219,7 @@ void Simulator::runCircuit()
                 event->eventTime = 0;
                 event->runEvent();                      //当前事件的 runEvent 方法，执行与该事件关联的回调函数。
                 event = m_firstEvent;                   //更新指针为下一个事件
-                
+
                 //如果有下一个事件，则更新下一个时间戳，如果没有则返回
                 if( event ) nextTime = event->eventTime;
                 else break;
@@ -225,7 +228,7 @@ void Simulator::runCircuit()
             if( m_state < SIM_RUNNING ) break;
             event = m_firstEvent;                        // 更新 event 指针为可能在 solveCircuit 方法中添加的新事件。
         }
-        if( m_state > SIM_WAITING ) 
+        if( m_state > SIM_WAITING )
             m_circTime = endRun; //如果模拟器的状态是运行中或更高状态，则将电路时间 m_circTime 更新为运行结束时间 endRun。
         currentCount++;
         auto now2 = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
@@ -234,7 +237,7 @@ void Simulator::runCircuit()
         {
             lastRunTime = now2;
             break;
-        }      
+        }
     }
 }
 
@@ -244,7 +247,7 @@ void Simulator::solveCircuit()
     while( m_changedNode || m_nonLinear || !m_converged ) // Also Proccess changes gererated in voltChanged()
     {
         //有节点的电压改变了（m_changedNode 为真），就调用 solveMatrix() 方法来解决电路的线性方程组。
-        if( m_changedNode ) 
+        if( m_changedNode )
             solveMatrix();
 
         //检查电路是否收敛
@@ -260,7 +263,33 @@ void Simulator::solveCircuit()
                 m_nonLinear->voltChanged();
                 m_nonLinear = m_nonLinear->nextChanged;
             }
-            if( m_maxNlstp && (m_NLstep++ >= m_maxNlstp) ) { m_warning = 1; return; } // Max iterations reached   表示达到了最大非线性步骤限制，电路未能收敛
+            if( m_maxNlstp && (m_NLstep++ >= m_maxNlstp) )
+            {
+                if( m_convergenceDiagnostics && m_NLstep == m_maxNlstp+1 )
+                {
+                    std::cerr << "Nonlinear convergence diagnostics after "
+                              << m_maxNlstp << " iterations:" << std::endl;
+                    for( const auto& [id, count] : m_nonConvergedCounts )
+                    {
+                        std::cerr << "  " << id << " count=" << count;
+                        auto state = m_nonConvergedStates.find( id );
+                        if( state != m_nonConvergedStates.end() )
+                            std::cerr << " " << state->second;
+                        std::cerr << std::endl;
+                    }
+                    std::cerr << "  last convergence events:" << std::endl;
+                    uint32_t first = m_nonConvergedTraceCount > m_nonConvergedTrace.size()
+                                   ? m_nonConvergedTraceCount-m_nonConvergedTrace.size()
+                                   : 0;
+                    for( uint32_t i=first; i<m_nonConvergedTraceCount; ++i )
+                    {
+                        const auto& event = m_nonConvergedTrace[i%m_nonConvergedTrace.size()];
+                        std::cerr << "    " << event.first << " " << event.second << std::endl;
+                    }
+                }
+                m_warning = 1;
+                return;
+            } // Max iterations reached
             if( m_state < SIM_RUNNING ){ m_converged = false; break; }    // Loop broken without converging  电路未收敛，退出电路运行
             if( m_changedNode ) solveMatrix();  //如果有节点的电压改变了，再次调用 solveMatrix() 方法来解决线性方程组。
         }
@@ -287,6 +316,29 @@ void Simulator::solveCircuit()
     }
 }
 
+void Simulator::notCorverged( const std::string& elementId,
+                              const std::string& state )
+{
+    m_converged = false;
+    if( !m_convergenceDiagnostics || elementId.empty() ) return;
+    ++m_nonConvergedCounts[elementId];
+    m_nonConvergedStates[elementId] = state;
+    m_nonConvergedTrace[m_nonConvergedTraceCount%m_nonConvergedTrace.size()]
+        = { elementId, state };
+    ++m_nonConvergedTraceCount;
+}
+
+SimulationSnapshot Simulator::snapshot( const std::vector<Pin*>& pins )
+{
+    std::lock_guard<std::mutex> lock( m_snapshotMutex );
+    SimulationSnapshot result;
+    result.circTime = m_circTime;
+    result.warning = m_warning.load();
+    result.pinVoltages.reserve( pins.size() );
+    for( Pin* pin : pins ) result.pinVoltages.push_back( pin ? pin->getVoltage() : 0 );
+    return result;
+}
+
 void Simulator::resetSim()
 {
     m_state    = SIM_STOPPED;
@@ -298,6 +350,9 @@ void Simulator::resetSim()
     m_circTime = 1;
     m_updtTime = 0;
     m_NLstep   = 0;
+    m_nonConvergedCounts.clear();
+    m_nonConvergedStates.clear();
+    m_nonConvergedTraceCount = 0;
 
 
     //InfoWidget::self()->setCircTime( 0 );   --------------------------------------------------------------------------------------//图形界面不需要
@@ -321,7 +376,7 @@ void Simulator::createNodes()
     int i = 0;
     std::vector<std::string> pinList;  //用于存储已处理的引脚ID
     std::vector<std::string> pinNames; //存储所有引脚的名称。
-    for (const auto& pair : Circuit::self()->m_pinMap) 
+    for (const auto& pair : Circuit::self()->m_pinMap)
     {
         pinNames.push_back(pair.first);
     } //取引脚名称列表
@@ -332,7 +387,7 @@ void Simulator::createNodes()
     {
         Pin* pin = nullptr;
         auto it = Circuit::self()->m_pinMap.find(pinName);  //返回对应引脚
-        if (it != Circuit::self()->m_pinMap.end()) 
+        if (it != Circuit::self()->m_pinMap.end())
         {
             pin = it->second;
         }
@@ -354,8 +409,8 @@ void Simulator::createNodes()
         {
             std::string pinId = nodePin->getId();//qDebug() <<pinId<<"\t\t\t"<<nodePin->getEnode()->itemId();
             if( pinId.find("Node") == 0 ) continue;
-            if (std::find(pinList.begin(), pinList.end(), pinId) == pinList.end()) 
-            { 
+            if (std::find(pinList.begin(), pinList.end(), pinId) == pinList.end())
+            {
                 pinList.push_back(pinId);
             }
         }
@@ -373,7 +428,7 @@ void Simulator::startSim(bool paused)
         m_state = SIM_STARTING;
     }
 
-    
+
     std::cout << "\nStarting Circuit Simulation...\n";
 
     for (Socket* sock : m_socketList) sock->connectPins( true );  //遍历所有的插座（Socket）对象，并更新它们的引脚状态
@@ -410,10 +465,10 @@ void Simulator::startSim(bool paused)
     std::cout << "\n    Simulation Running... \n";
 
 
-#ifndef __EMSCRIPTEN__
     // auto now = std::chrono::high_resolution_clock::now();
     // m_startTime = now;
    // 创建定时器并启动异步等待
+#ifndef __EMSCRIPTEN__
     m_timer = std::make_unique<asio::steady_timer>(io, m_timerTick_ms);
     m_timer->async_wait([this](const asio::error_code& error) {
         {
@@ -470,11 +525,12 @@ uint64_t Simulator::realPsPF()
 }
 
 //暂停仿真
-void Simulator::pauseSim() 
+void Simulator::pauseSim() // Only pause simulation, don't update UI
 {
     std::lock_guard<std::mutex> lock(simStateMutex);
     if(m_state <= SIM_PAUSED) return;
-    m_oldState = m_state;
+    // 不恢复到内部状态 SIM_WAITING，否则定时器不会再启动 runCircuit。
+    m_oldState = (m_state == SIM_WAITING) ? SIM_RUNNING : m_state;
     m_state = SIM_PAUSED;
     // 暂停定时器
 #ifndef __EMSCRIPTEN__
@@ -564,14 +620,14 @@ void Simulator::cancelEvents( eElement* el )
         }
         else last = event;
         event = next;
-    }   
+    }
 }
 
 //添加一个节点到节点列表中
 void Simulator::addToEnodeList( eNode* nod )
-{ 
-    if(std::find(m_eNodeList.begin(), m_eNodeList.end(), nod) == m_eNodeList.end()) 
-        m_eNodeList.push_back( nod ); 
+{
+    if(std::find(m_eNodeList.begin(), m_eNodeList.end(), nod) == m_eNodeList.end())
+        m_eNodeList.push_back( nod );
 }
 
 //添加一个元件到元件列表中
@@ -583,7 +639,7 @@ void Simulator::addToElementList( eElement* el )
 
 //移除一个元件
 void Simulator::remFromElementList( eElement* el )
-{ 
+{
     auto it = std::remove(m_elementList.begin(), m_elementList.end(), el);
     m_elementList.erase(it, m_elementList.end());
 }
@@ -598,7 +654,7 @@ void Simulator::addToStatusElementList( eElement* el )
  }
 //移除一个状态元件
 void Simulator::remFromStatusElementList( eElement* el )
-{ 
+{
     auto it = std::remove(m_statusElementList.begin(), m_statusElementList.end(), el);
     m_statusElementList.erase(it, m_statusElementList.end());
 }
@@ -648,7 +704,7 @@ OutputData Simulator::getOutputData()
 {
     int readIndex = m_currentBufferIndex.load(std::memory_order_acquire);
     return {
-        m_buffers[readIndex].meterData ? m_buffers[readIndex].meterData 
+        m_buffers[readIndex].meterData ? m_buffers[readIndex].meterData
                                       : std::make_shared<std::vector<MeterData*>>(),
         m_buffers[readIndex].statusData ? m_buffers[readIndex].statusData
                                        : std::make_shared<std::vector<ElementStatus*>>()
@@ -676,8 +732,8 @@ std::vector<Meter *>  Simulator::getMeters()
 
 //将需要更新的对象添加到更新列表中
 void Simulator::addToUpdateList( Updatable* el )
-{ 
-    if (std::find(m_updateList.begin(), m_updateList.end(), el) == m_updateList.end()) 
+{
+    if (std::find(m_updateList.begin(), m_updateList.end(), el) == m_updateList.end())
     {
         m_updateList.push_back(el);
     }
@@ -685,21 +741,21 @@ void Simulator::addToUpdateList( Updatable* el )
 }
 
 void Simulator::remFromUpdateList( Updatable* el )
-{ 
+{
     auto it = std::remove(m_updateList.begin(), m_updateList.end(), el);
     m_updateList.erase(it, m_updateList.end());
 }
 
 void Simulator::addToSocketList( Socket* el )
-{ 
-    if (std::find(m_socketList.begin(), m_socketList.end(), el) == m_socketList.end()) 
+{
+    if (std::find(m_socketList.begin(), m_socketList.end(), el) == m_socketList.end())
     {
         m_socketList.push_back(el);
     }
 }
 
 void Simulator::remFromSocketList( Socket* el )
-{ 
+{
     auto it = std::remove(m_socketList.begin(), m_socketList.end(), el);
     m_socketList.erase(it, m_socketList.end());
 

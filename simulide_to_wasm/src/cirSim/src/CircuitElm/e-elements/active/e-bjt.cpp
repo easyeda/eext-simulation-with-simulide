@@ -95,7 +95,18 @@ void eBJT::voltChanged()
     else if( std::fabs(voltBC-m_voltBC) < .01
           && std::fabs(voltBE-m_voltBE) < .01 )
         { m_step = 0; return; }
-    Simulator::self()->notCorverged();
+    Simulator* simulator = Simulator::self();
+    if( simulator->convergenceDiagnosticsEnabled() )
+    {
+        std::ostringstream convergenceState;
+        convergenceState << "rawVbc=" << voltBC
+                         << " rawVbe=" << voltBE
+                         << " previousVbc=" << m_voltBC
+                         << " previousVbe=" << m_voltBE
+                         << " step=" << m_step;
+        simulator->notCorverged( m_elmId, convergenceState.str() );
+    }
+    else simulator->notCorverged();
 
     m_step += .1;
     double gmin = m_satCur*1e-2*std::exp( m_step );

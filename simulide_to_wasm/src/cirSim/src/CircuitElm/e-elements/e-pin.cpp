@@ -50,6 +50,11 @@ void ePin::stampSingAdm( double admit )
     if( m_enode ) m_enode->stampSingAdm( this, admit );
 }
 
+void ePin::stampSingAdm( int node, double admit )
+{
+    if( m_enode ) m_enode->stampSingAdm( this, node, admit );
+}
+
 void ePin::createCurrent()
 {
     if( m_enode ) m_enode->createCurrent( this );

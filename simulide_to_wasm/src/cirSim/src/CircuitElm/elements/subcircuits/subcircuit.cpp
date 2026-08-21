@@ -229,6 +229,28 @@ void SubCircuit::loadSubCircuit( std::string file )
     numId = split(numId ,'-').back();
     Circuit* circ = Circuit::self();
 
+    // 解析连线引脚 id：先查全局引脚表 m_LdPinMap；未命中时回退到 Component::getPin()。
+    // 某些器件（如 FullAdder）用逻辑名 in0/in1/in2/out0/out1 暴露引脚，而真实注册的
+    // 引脚 id 是 in11/in12/out11（由 setNumInps 的 id0=10 生成），二者靠 getPin() 做别名映射。
+    auto resolvePin = [&]( const std::string& pinId ) -> Pin*
+    {
+        auto it = circ->m_LdPinMap.find( pinId );
+        if( it != circ->m_LdPinMap.end() ) return it->second;
+
+        for( Component* comp : m_compList )           // 回退：pinId == "compId-pinName"
+        {
+            const std::string& uid = comp->getUid();
+            if( pinId.size() > uid.size()+1
+             && pinId.compare( 0, uid.size(), uid ) == 0
+             && pinId[uid.size()] == '-' )
+            {
+                Pin* pin = comp->getPin( pinId.substr( uid.size()+1 ) );
+                if( pin ) return pin;
+            }
+        }
+        return nullptr;
+    };
+
     std::vector<Linkable*>  linkList;   // Linked  Component list
 
     std::vector<std::string> docLines = split(doc,'\n');
@@ -323,8 +345,8 @@ void SubCircuit::loadSubCircuit( std::string file )
                 startpinid = replaceString(startpinid,"Pin-", "Pin_"); // Old TODELETE
                 endpinid = replaceString(endpinid,"Pin-", "Pin_"); // Old TODELETE
 
-                startPin = circ->m_LdPinMap[startpinid];
-                endPin   = circ->m_LdPinMap[endpinid];
+                startPin = resolvePin(startpinid);
+                endPin   = resolvePin(endpinid);
 
                 if( startPin && endPin )    // Create Connector
                 {
@@ -469,12 +491,13 @@ Pin* SubCircuit::addPin( std::string id, std::string type, std::string label, in
 Pin* SubCircuit::updatePin( std::string id, std::string type, std::string label, int pos)
 {
     Pin* pin = NULL;
-    Tunnel* tunnel = m_pinTunnels.at( m_id+"-"+id );
-    if( !tunnel )
+    const std::string key = m_id+"-"+id;
+    auto tunIt = m_pinTunnels.find( key );
+    if( tunIt == m_pinTunnels.end() )
     {
-       std::cerr <<"SubCircuit::updatePin Pin Not Found:"<<id<<type<<label;
         return NULL;
     }
+    Tunnel* tunnel = tunIt->second;
     //tunnel->setPos( xpos, ypos );
     //tunnel->setRotated( angle >= 180 );      // Our Pins at left side
 
@@ -557,7 +580,12 @@ Component* SubCircuit::getMainComp( std::string name )
         auto it = m_mainComponents.begin(); // 获取 unordered_map 的迭代器
         return it->second; // 返回第一个键对应的值，假设 Component* 类型
     }
-    return m_mainComponents.at(name);
+    auto mainIt = m_mainComponents.find( name );
+    if( mainIt == m_mainComponents.end() )
+    {
+        return nullptr;
+    }
+    return mainIt->second;
 }
 
 void SubCircuit::remove()

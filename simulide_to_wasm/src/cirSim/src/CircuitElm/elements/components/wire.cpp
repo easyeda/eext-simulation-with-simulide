@@ -56,7 +56,7 @@ Wire::Wire( std::string type, std::string id )
     Simulator::self()->addToUpdateList( this );
     m_unit = "A";
     m_current = 0;
-    setRes( 1e-9 );
+    setRes( 1e-6 );
 }
 
 Wire::~Wire(){}

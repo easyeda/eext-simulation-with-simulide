@@ -23,7 +23,7 @@ class eLed : public eResistor
         virtual void voltChanged() override;
 
         double threshold() { return m_threshold; }
-        void  setThreshold( double threshold ) { m_threshold = threshold; m_changed = true; }
+        void  setThreshold( double threshold );
 
         double maxCurrent()             { return m_maxCurrent; }
         void  setMaxCurrent( double c ) { m_maxCurrent = c; m_changed = true; }
@@ -42,6 +42,7 @@ class eLed : public eResistor
     protected:
         virtual void updateVI() override;
 
+        // LED特有属性（亮度相关）
         bool m_converged;
 
         uint64_t m_prevStep;
@@ -58,5 +59,22 @@ class eLed : public eResistor
         double m_threshold;
         double m_imped;
         double m_lastThCurrent;
+
+        double m_vt;
+        double m_vzCoef;
+        double m_vScale;
+        double m_vdCoef;
+        double m_vCriti;
+        double m_zOfset;
+        double m_vzCrit;
+        double m_bAdmit;
+        double m_satCur;
+        double m_emCoef;
+        double m_bkDown;
+        double m_step;
+        bool m_changed;
+
+        inline double limitStep( double vnew, double vold, double scale, double vc );
+        void updateDiodeValues();
 };
 

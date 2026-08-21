@@ -36,28 +36,30 @@ void CircMatrix::createMatrix( std::vector<eNode*> &eNodeList )
     analyze();
 }
 
-void CircMatrix::addConnections( int enodNum, std::vector<int>* nodeGroup, std::vector<int>* allNodes )
-{
-    nodeGroup->push_back( enodNum );
-    auto it = std::find(allNodes->begin(), allNodes->end(), enodNum);
-    if (it != allNodes->end()) allNodes->erase(it);
-    eNode* enod = (*m_eNodeList)[enodNum - 1];
-    enod->setSingle( false );
-
-    std::vector<int> cons = enod->getConnections();
-    for( int nodeNum : cons )
-    {
-        if( nodeNum == 0 ) continue;
-        if(std::find(nodeGroup->begin(), nodeGroup->end(), nodeNum) == nodeGroup->end()) addConnections( nodeNum, nodeGroup, allNodes );
-    }
-}
-
 void CircMatrix::analyze()
 {
     std::cout << "entering analyze" << std::endl;
 
-    std::vector<int> allNodes;
-    for( int i=0; i<m_numEnodes; i++ ) allNodes.push_back( i+1 );
+    // m_nodeList 表示矩阵中的非零耦合项。即使某个器件只从一侧登记
+    // A 行到 B 列的项，A、B 也必须属于同一个求解块，因此这里按无向图分组。
+    std::vector<std::vector<int>> adjacency( m_numEnodes+1 );
+    for( int nodeNum=1; nodeNum<=m_numEnodes; ++nodeNum )
+    {
+        const std::vector<int>& connections = (*m_eNodeList)[nodeNum-1]->getConnections();
+        for( int connectedNode : connections )
+        {
+            if( connectedNode == 0 ) continue; // 地节点是已知电位，不参加矩阵分组
+            if( connectedNode < 1 || connectedNode > m_numEnodes )
+            {
+                std::cerr << "CircMatrix: invalid node connection "
+                          << nodeNum << " -> " << connectedNode << std::endl;
+                continue;
+            }
+            adjacency[nodeNum].push_back( connectedNode );
+            adjacency[connectedNode].push_back( nodeNum );
+        }
+    }
+    std::vector<bool> visited( m_numEnodes+1, false );
 
     m_aList.clear();
     m_aFaList.clear();
@@ -67,10 +69,27 @@ void CircMatrix::analyze()
     int group = 0;
     int singleNode = 0;
 
-    while( !allNodes.empty() )
+    for( int root=1; root<=m_numEnodes; ++root )
     {
+        if( visited[root] ) continue;
+
         std::vector<int> nodeGroup;
-        addConnections( allNodes.front(), &nodeGroup, &allNodes );
+        std::vector<int> pending{ root };
+        visited[root] = true;
+        while( !pending.empty() )
+        {
+            const int nodeNum = pending.back();
+            pending.pop_back();
+            nodeGroup.push_back( nodeNum );
+            (*m_eNodeList)[nodeNum-1]->setSingle( false );
+
+            for( int connectedNode : adjacency[nodeNum] )
+            {
+                if( visited[connectedNode] ) continue;
+                visited[connectedNode] = true;
+                pending.push_back( connectedNode );
+            }
+        }
 
         int numEnodes = (int)nodeGroup.size();
         if( numEnodes==1 )
@@ -217,10 +236,11 @@ bool CircMatrix::luSolve( int n, int group ) // Solves the system to get voltage
         double sum = bperm[i];
         for(int j=i+1;j<n;++j) sum -= rowi[j] * x[j];
         double div = rowi[i];
-        if(div == 0.0) {
+        if(div == 0.0 || !std::isfinite(div) || !std::isfinite(sum)) {
             isOk = false;
         } else{
             x[i] = sum / div;
+            if( !std::isfinite(x[i]) ) isOk = false;
         }
     }
 
@@ -229,5 +249,5 @@ bool CircMatrix::luSolve( int n, int group ) // Solves the system to get voltage
         // std:: cout << 'the node of ' << i << 'volt is' << x[i] << std::endl;
         m_eNodeActive->at(i)->setVolt( x[i] );
     }
-    return true;
+    return isOk;
 }

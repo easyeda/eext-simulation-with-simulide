@@ -68,7 +68,9 @@ Tunnel::~Tunnel() {}
 
 eNode* Tunnel::getEnode( std::string n )
 {
-    std::vector<Tunnel*>* list = m_tunnels.at( n );
+    auto tIt = m_tunnels.find( n );
+    if( tIt == m_tunnels.end() ) return NULL;
+    std::vector<Tunnel*>* list = tIt->second;
     if( !list ) return NULL;
     Tunnel* tunnel= list->front();
     if( tunnel ) return tunnel->getPin()->getEnode();
@@ -93,7 +95,9 @@ void Tunnel::registerEnode( eNode* enode, int n ) // called by m_pin[0]
 {
     if( m_blocked ) return;
 
-    std::vector<Tunnel*>* list = m_tunnels.at( m_name );
+    auto tIt = m_tunnels.find( m_name );
+    if( tIt == m_tunnels.end() ) return;
+    std::vector<Tunnel*>* list = tIt->second;
     if( !list ) return;
 
     m_blocked = true;

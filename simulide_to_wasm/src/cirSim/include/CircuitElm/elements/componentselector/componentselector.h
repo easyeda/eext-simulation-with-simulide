@@ -27,30 +27,20 @@ class ComponentSelector
         void LoadCompSetAt(const fs::path& compSetDir);
 
         //根据组件名称获取其对应的 XML 文件路径。
-        std::string getXmlFile( std::string compName ) 
+        //找不到时返回空串。
+        std::string getXmlFile( std::string compName )
         {
             auto it = m_xmlFileList.find(compName);
-            if (it != m_xmlFileList.end()) 
-            {
-                return it->second;
-            }
-            else 
-            {
-                throw std::out_of_range("Key not found in map");
-            }
+            if (it != m_xmlFileList.end()) return it->second;
+            std::cerr << "[ComponentSelector] getXmlFile: component \"" << compName << "\" not registered" << std::endl;
+            return "";
         }
         //根据组件名称获取其所在的文件夹路径。
-        std::string getFileDir( std::string compName ) 
-        { 
+        std::string getFileDir( std::string compName )
+        {
             auto it = m_dirFileList.find(compName);
-            if (it != m_dirFileList.end())
-            {
-                return it->second;
-            }
-            else
-            {
-                throw std::out_of_range("Key not found in map");
-            }
+            if (it != m_dirFileList.end()) return it->second;
+            return "";
         }
 
         //根据给定的过滤条件搜索组件。

@@ -59,7 +59,12 @@ int loadCircuitFromFile(const char* filename, const char* fileContent) {
         }
         std::printf("[simulide][info] loadCircuitFromFile: filename=%s, size=%zu\n",
             filename ? filename : "(null)", std::strlen(fileContent));
-        g_circuit = new Circuit(std::string(fileContent));
+        std::string content(fileContent);
+        // 剥掉网表开头的 UTF-8 BOM，保证 <circuit 头属性正常解析。
+        if( content.size() >= 3 && (unsigned char)content[0] == 0xEF
+         && (unsigned char)content[1] == 0xBB && (unsigned char)content[2] == 0xBF )
+            content = content.substr(3);
+        g_circuit = new Circuit(content);
         g_simulator = g_circuit->m_simulator; 
         logInfo("loadCircuitFromFile: circuit created");
 

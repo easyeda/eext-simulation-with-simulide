@@ -81,9 +81,21 @@ void VoltReg::stamp()
 
         m_ePin[0]->createCurrent();
         m_ePin[1]->createCurrent();
+
+        const int inputNode = m_ePin[0]->getEnode()->getNodeNumber();
+        const int refNode = m_ePin[2]->getEnode()->getNodeNumber();
+        m_ePin[0]->addSingAdm( inputNode, 0 );
+        m_ePin[1]->addSingAdm( inputNode, 0 );
+        if( refNode != inputNode )
+        {
+            m_ePin[0]->addSingAdm( refNode, 0 );
+            m_ePin[1]->addSingAdm( refNode, 0 );
+        }
     }
     eResistor::stamp();
-    m_lastCurrent = 0;
+    m_lastInputSlope = std::numeric_limits<double>::quiet_NaN();
+    m_lastRefSlope = std::numeric_limits<double>::quiet_NaN();
+    m_lastOffset = std::numeric_limits<double>::quiet_NaN();
 }
 
 void VoltReg::updateStep()
@@ -96,21 +108,51 @@ void VoltReg::updateStep()
 
 void VoltReg::voltChanged()
 {
-    double inVolt  = m_ePin[0]->getVoltage();
-    double outVolt = m_ePin[2]->getVoltage()+m_vRef;
+    const double inputVolt = m_ePin[0]->getVoltage();
+    const double refVolt = m_ePin[2]->getVoltage();
+    double modelInput = inputVolt;
+    if( modelInput < 1e-6 ) modelInput = 0;
 
-    if( inVolt < 1e-6 ) inVolt = 0;
-    double delta = inVolt-outVolt;
-    if( delta < 0.7 )
+    // 原模型的等效电流是分段仿射函数：
+    // I = inputSlope*Vin + refSlope*Vref + offset。
+    // 把两个斜率作为 Jacobian 写入矩阵后，每个工作区都能一次解出，
+    // 不再用 1e6 倍电流源对参考端做不稳定的固定点迭代。
+    double inputSlope = 0;
+    double refSlope = 0;
+    double offset = 0;
+    const double delta = modelInput-(refVolt+m_vRef);
+    if( delta >= 0.7 )
     {
-        if( inVolt < 0.7 ) delta = inVolt;
-        else               delta = 0.7;
+        inputSlope = m_admit;
+        refSlope = -m_admit;
+        offset = -m_admit*m_vRef;
     }
-    double current = delta*m_admit;
-    if (std::fabs(m_lastCurrent - current) < 1e-3) return;
-    m_lastCurrent = current;
+    else if( modelInput >= 0.7 ) offset = 0.7*m_admit;
+    else if( inputVolt >= 1e-6 ) inputSlope = m_admit;
+
+    if( inputSlope == m_lastInputSlope
+     && refSlope == m_lastRefSlope
+     && offset == m_lastOffset ) return;
+
+    m_lastInputSlope = inputSlope;
+    m_lastRefSlope = refSlope;
+    m_lastOffset = offset;
     Simulator::self()->notCorverged();
 
-    m_pin[0]->stampCurrent( current );
-    m_pin[1]->stampCurrent(-current );
+    const int inputNode = m_ePin[0]->getEnode()->getNodeNumber();
+    const int refNode = m_ePin[2]->getEnode()->getNodeNumber();
+    const bool commonControlNode = inputNode == refNode;
+    const double combinedSlope = inputSlope+refSlope;
+
+    m_ePin[0]->stampSingAdm( inputNode,
+                             commonControlNode ? combinedSlope : inputSlope );
+    m_ePin[1]->stampSingAdm( inputNode,
+                             commonControlNode ? -combinedSlope : -inputSlope );
+    if( !commonControlNode )
+    {
+        m_ePin[0]->stampSingAdm( refNode, refSlope );
+        m_ePin[1]->stampSingAdm( refNode, -refSlope );
+    }
+    m_pin[0]->stampCurrent( offset );
+    m_pin[1]->stampCurrent(-offset );
 }

@@ -35,7 +35,9 @@ class VoltReg : public Component, public eResistor
 
     protected:
         double m_vRef;
-        double m_lastCurrent;
+        double m_lastInputSlope;
+        double m_lastRefSlope;
+        double m_lastOffset;
 
         bool m_connected;
 };

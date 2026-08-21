@@ -48,6 +48,7 @@ class ePin
         void addSingAdm( int node, double admit );
         //填入单独的导纳值。
         void stampSingAdm( double admit );
+        void stampSingAdm( int node, double admit );
 
         //创建电流。
         void createCurrent();

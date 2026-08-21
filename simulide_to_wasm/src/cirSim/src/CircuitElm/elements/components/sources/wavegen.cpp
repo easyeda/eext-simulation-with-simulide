@@ -187,12 +187,12 @@ void WaveGen::genTriangle()
 
 void WaveGen::genSquare()
 {
-    if( m_vOut == 1 )
+    if( m_vOut == 0.5 )
     {
         m_vOut = 0;
         m_eventTime = m_psPerCycleDbl-m_halfW;
     }else{
-        m_vOut = 1;
+        m_vOut = 0.5;
         m_eventTime = m_halfW;
     }
     m_eventTime += getRemainer();

@@ -49,7 +49,7 @@ class eElement
         //恢复元件处理事件
         void resumeEvents();
 
-        static constexpr double cero_doub = 1e-9;   //用于浮点数比较
+        static constexpr double cero_doub = 1e-14;   //用于浮点数比较
         static constexpr double high_imp  = 1e14;    //高阻抗，模拟开路
 
         // Simulator engine

@@ -39,6 +39,14 @@ class eNode;
 class CircMatrix;
 class MeterData;
 class Meter;
+class Pin;
+
+struct SimulationSnapshot
+{
+    uint64_t circTime;
+    int warning;
+    std::vector<double> pinVoltages;
+};
 
 struct ElementStatus{
     std::string id;
@@ -102,7 +110,9 @@ class Simulator
             return static_cast<int>(m_speed * 20);
         };
 
-        void setWarning( int warning ) { m_warning = warning; }   //设置警告
+        void setWarning( int warning ) { m_warning.store( warning ); }   //设置警告
+        int warning() const { return m_warning.load(); }
+        SimulationSnapshot snapshot( const std::vector<Pin*>& pins );
         
 
         uint64_t realPsPF();               //返回实际每帧仿真时间的皮秒数------------------------------存疑
@@ -131,7 +141,10 @@ class Simulator
 
         simState_t simState() { return m_state; }               //返回仿真器当前状态
 
-        inline void notCorverged() { m_converged = false; }     //标记仿真未收敛
+        void notCorverged( const std::string& elementId = {},
+                           const std::string& state = {} );
+        void setConvergenceDiagnostics( bool enabled ) { m_convergenceDiagnostics = enabled; }
+        bool convergenceDiagnosticsEnabled() const { return m_convergenceDiagnostics; }
 
         void addToEnodeList( eNode* nod );                      //将节点添加到仿真器的节点链表中
 
@@ -225,6 +238,7 @@ class Simulator
         //表示当前仿真状态和前一个仿真状态的枚举值,以及仿真状态锁
 
         std::mutex simSpeedMutex;
+        std::mutex m_snapshotMutex;
         double m_speed;
         //仿真速度，以及仿真速度锁
 
@@ -235,7 +249,7 @@ class Simulator
         //分别表示是否启用调试模式、电路是否已收敛到稳定状态和是否暂停电路仿真的布尔值。
 
         int m_error;
-        int m_warning;
+        std::atomic<int> m_warning;
         //int m_timerId;
         int m_timerTick_ms;
         int m_slopeSteps;
@@ -244,6 +258,11 @@ class Simulator
         // uint64_t m_fps;
         uint32_t m_NLstep;        //非线性元件的迭代次数
         uint32_t m_maxNlstp;      //最大迭代次数
+        std::unordered_map<std::string, uint32_t> m_nonConvergedCounts;
+        std::unordered_map<std::string, std::string> m_nonConvergedStates;
+        std::array<std::pair<std::string, std::string>, 32> m_nonConvergedTrace;
+        uint32_t m_nonConvergedTraceCount = 0;
+        bool m_convergenceDiagnostics = false;
 
         uint64_t m_circTime;      //表示电路仿真的总时间，从仿真开始到当前时刻的累计时间。
         uint64_t scopeTime;

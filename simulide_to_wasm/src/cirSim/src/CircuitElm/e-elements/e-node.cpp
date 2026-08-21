@@ -42,7 +42,6 @@ eNode::~eNode()
 void eNode::initialize()
 {
     m_voltChanged  = true; // Used for wire animation
-    // m_switched     = false;
     m_single       = false;
     m_changed      = false;
     m_currChanged  = false;
@@ -128,7 +127,6 @@ void eNode::stampAdmitance( ePin* epin, double admit ) // Be sure msg doesn't co
         conn = conn->next;
     }
 
-    // if( admit == 0 ) m_switched = true;
     m_admitChanged = true;
     changed();
 }
@@ -169,9 +167,25 @@ void eNode::stampSingAdm( ePin* epin, double admit )
         if( conn->epin == epin ) { conn->value = admit; break; } // Connection found
         conn = conn->next;
     }
-    /// if( admit == 0 ) m_switched = true;
     m_admitChanged = true;
     changed();
+}
+
+void eNode::stampSingAdm( ePin* epin, int node, double admit )
+{
+    Connection* conn = m_firstSingAdm;
+    while( conn )
+    {
+        if( conn->epin == epin && conn->node == node )
+        {
+            if( conn->value == admit ) return;
+            conn->value = admit;
+            m_admitChanged = true;
+            changed();
+            return;
+        }
+        conn = conn->next;
+    }
 }
 
 void eNode::createCurrent( ePin* epin )
@@ -214,7 +228,6 @@ void eNode::stampMatrix()
     if( m_admitChanged )
     {
         m_totalAdmit = 0;
-        // if( m_switched ) m_totalAdmit += 1e-12; // Weak connection to ground
 
         if( m_single )
         {
@@ -270,7 +283,14 @@ void eNode::stampMatrix()
             {                  // Stamp non diagonal
                 int    enode = na->node;
                 double admit = na->value;
-                if( enode > 0 ) CircMatrix::self()->stampMatrix( m_nodeNum, enode, -admit );
+                if( enode > 0 )
+                {
+                    // 受控源项可能指向本行节点，例如运放电压跟随器。
+                    // 此时它应累加到对角项，不能覆盖上方已写入的输出和负载导纳。
+                    double matrixValue = -admit;
+                    if( enode == m_nodeNum ) matrixValue += m_totalAdmit;
+                    CircMatrix::self()->stampMatrix( m_nodeNum, enode, matrixValue );
+                }
                 na = na->next;
             }
         }

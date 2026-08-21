@@ -24,22 +24,25 @@ const std::unordered_map<std::string, double> multipliers = {
 
 double getMultiplier(std::string& unit) {
     if (unit.empty()) return 1.0;
+    if (unit.front() == '_') return 1.0;
     
     std::string lowerUnit = unit;
     std::transform(lowerUnit.begin(), lowerUnit.end(), lowerUnit.begin(), ::tolower);
     
+    std::string bestKey;
+    double bestMult = 1.0;
     for (const auto& pair : multipliers) {
         std::string unitKey = pair.first;
         std::transform(unitKey.begin(), unitKey.end(), unitKey.begin(), ::tolower);
-        
-        if (lowerUnit.find(unitKey) != std::string::npos) {
-            if (unitKey.find("s") != std::string::npos || 
-                unitKey.find("hz") != std::string::npos) {
-                return pair.second;
-            }
+        if (lowerUnit.find(unitKey) != std::string::npos &&
+            (unitKey.find("s") != std::string::npos || unitKey.find("hz") != std::string::npos) &&
+            unitKey.size() > bestKey.size()) {
+            bestKey = unitKey;
+            bestMult = pair.second;
         }
     }
-    
+    if (!bestKey.empty()) return bestMult;
+
     char firstChar = unit[0];
     auto it = multipliers.find(std::string(1, firstChar));
     return (it != multipliers.end()) ? it->second : 1.0;

@@ -49,6 +49,32 @@ Led::Led( std::string type, std::string id )
 }
 Led::~Led(){}
 
+
+void Led::updateStep()
+{
+    uint32_t intensity = m_intensity;
+    eLed::updateBright();
+
+    if( overCurrent() > 1.5 )
+    {
+        m_warning = true;
+        m_crashed = overCurrent() > 2;
+
+    }
+    else
+    {
+        m_warning = false;
+        m_crashed = false;
+    }
+    if( m_changed )
+    {
+        m_changed = false;
+        voltChanged();
+    }
+
+}
+
+
 void Led::voltChanged()
 {
     eLed::voltChanged();

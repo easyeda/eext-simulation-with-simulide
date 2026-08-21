@@ -48,6 +48,7 @@ class eNode
         void addSingAdm( ePin* epin, int node, double admit );
         //赋值单独电导
         void stampSingAdm( ePin* epin, double admit );
+        void stampSingAdm( ePin* epin, int node, double admit );
 
         //创建电流、当前值？
         void createCurrent( ePin* epin );
@@ -78,8 +79,7 @@ class eNode
 
         //设置节点是否可以自行计算电压
         void setSingle( bool single ) { m_single = single; } // This eNode can calculate it's own Volt
-        // //设置节点是否有节点开关
-        // void setSwitched( bool switched ){ m_switched = switched; } // This eNode has switches attached
+
 
         //更新连接到节点的连接器
         void updateConnectors();
@@ -154,7 +154,6 @@ class eNode
         bool m_voltChanged;  //电压是否变化的标志。
         bool m_changed;      //节点状态是否变化的标志。
         bool m_single;       //节点是否可以自行计算电压的标志。
-        // bool m_switched;     //节点是否连接有开关的标志。
 };
 
 

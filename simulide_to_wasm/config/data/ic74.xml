@@ -7,6 +7,7 @@
     <item name="74HC00"  info="quad 2-input NAND gate" ></item>
     <item name="74XX01"  info="quad 2-input NAND gate, open Drain Outputs" ></item>
     <item name="74HC02"  info="quad 2-input NOR gate" ></item>
+    <item name="74HC03"  info="quad 2-input NAND gate, open Drain Outputs" ></item>
     <item name="74HC04"  info="hex inverter gate" ></item>
     <item name="74HC08"  info="quad 2-input AND gate" ></item>
     <item name="74XX11"  info="triple 3-input AND gate" ></item>

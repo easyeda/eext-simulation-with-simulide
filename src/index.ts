@@ -152,9 +152,58 @@ async function readExtensionText(path: string): Promise<string | undefined> {
 	return await file.text();
 }
 
+function revokeObjectURL(url: string): void {
+	if (!url || url.startsWith('data:')) {
+		// data: URL 无底层 blob 资源，无需释放。
+		return;
+	}
+	const sysFs = (globalThis as any)?.eda?.sys_FileSystem;
+	if (sysFs?.revokeObjectURL) {
+		try {
+			sysFs.revokeObjectURL(url);
+			return;
+		}
+		catch {
+			// 回退到原生 API。
+		}
+	}
+	if (typeof URL !== 'undefined' && typeof URL.revokeObjectURL === 'function') {
+		URL.revokeObjectURL(url);
+	}
+}
+
 function createModuleImportUrl(source: string): string {
 	const blob = new Blob([source], { type: 'text/javascript' });
-	return URL.createObjectURL(blob);
+	const sysFs = (globalThis as any)?.eda?.sys_FileSystem;
+	if (sysFs?.createObjectURL) {
+		try {
+			return sysFs.createObjectURL(blob);
+		}
+		catch {
+			// 官方接口抛错时回退。
+		}
+	}
+	if (typeof URL !== 'undefined' && typeof URL.createObjectURL === 'function') {
+		try {
+			return URL.createObjectURL(blob);
+		}
+		catch {
+			// 原生 API 抛错时回退到 data URL。
+		}
+	}
+	// 扩展宿主上下文可能没有 URL 全局（也无法 createObjectURL），
+	// 用 data URL 直接承载模块源码，绕过 blob URL。
+	return `data:text/javascript;base64,${encodeBase64Utf8(source)}`;
+}
+
+function encodeBase64Utf8(text: string): string {
+	if (typeof btoa === 'function') {
+		return btoa(unescape(encodeURIComponent(text)));
+	}
+	if (typeof Buffer !== 'undefined') {
+		return Buffer.from(text, 'utf-8').toString('base64');
+	}
+	throw new Error('No base64 encoder available for module data URL');
 }
 
 async function loadSimulideFactory(): Promise<(opts?: any) => Promise<SimulideModule>> {
@@ -172,7 +221,7 @@ async function loadSimulideFactory(): Promise<(opts?: any) => Promise<SimulideMo
 	const blobUrl = createModuleImportUrl(inlineScript);
 	debugLog('Loading simulide module from inline script');
 	const mod = await import(/* @vite-ignore */ blobUrl);
-	URL.revokeObjectURL(blobUrl);
+	revokeObjectURL(blobUrl);
 	const factory = mod?.default ?? mod;
 	if (typeof factory !== 'function') {
 		throw new TypeError('Simulide module factory not found');
@@ -254,6 +303,13 @@ function stopTimers(): void {
 		dataTimerId = null;
 	}
 	isSimulationRunning = false;
+}
+
+function disposeSimulideModule(): void {
+	// 释放当前 wasm Module，交由 GC 回收；下次加载时重建。
+	stopTimers();
+	cachedModule = null;
+	modulePromise = null;
 }
 
 function startStepTimer(): void {
@@ -375,6 +431,8 @@ export function activate(status?: 'onStartupFinished', arg?: string): void {
 							debugLog('SESSION_START missing circuit content', props);
 							break;
 						}
+						// 先释放上个 Module（回收其 WASM 堆，避免反复加载累积泄漏），再加载新电路到干净实例
+						disposeSimulideModule();
 						const result = await loadCircuitFromFile(payload);
 						await startSimulation();
 						debugLog('startSimulation done');

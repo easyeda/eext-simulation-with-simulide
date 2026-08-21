@@ -23,6 +23,8 @@ class Led : public LedBase, public Linkable
  static Component* construct( std::string type, std::string id );
  static LibraryItem* libraryItem();
 
+
+        virtual void updateStep() override;
         virtual void voltChanged() override;
         void slotLinkComp() { Linkable::startLinking(); }
 };

@@ -59,7 +59,6 @@ private:
     static CircMatrix* m_pSelf;
 
     void analyze();
-    void addConnections( int enodNum, std::vector<int>* nodeGroup, std::vector<int>* allNodes );
 
     // optimized implementations
     void factorMatrix( int n, int group );   

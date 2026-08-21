@@ -12,6 +12,7 @@
 
 //BEGIN Item includes
 #include "ammeter.h"
+#include "wattmeter.h"
 #include "sim_adc.h"
 //#include "aip31068_i2c.h"
 #include "audio_out.h"
@@ -46,9 +47,9 @@
 #include "flipflopjk.h"
 #include "flipfloprs.h"
 #include "flipflopt.h"
-//#include "freqmeter.h"
+#include "freqmeter.h"
 #include "fulladder.h"
-//#include "function.h"
+#include "function.h"
 #include "gate_and.h"
 #include "gate_or.h"
 #include "gate_xor.h"
@@ -148,7 +149,8 @@ void ItemLibrary::loadItems()
     addItem( Probe::libraryItem() );
     //addItem( Voltimeter::libraryItem() );
     addItem( Ammeter::libraryItem() );
-    //addItem( FreqMeter::libraryItem() );
+    addItem( FreqMeter::libraryItem() );
+    addItem( WattMeter::libraryItem() );
     //addItem( Oscope::libraryItem() );
     //addItem( LAnalizer::libraryItem() );
     // Sources
@@ -259,14 +261,14 @@ void ItemLibrary::loadItems()
     addItem( BinCounter::libraryItem() );
     addItem( FullAdder::libraryItem() );
     addItem( ShiftReg::libraryItem() );
-    //addItem( Function::libraryItem() );
+    addItem( Function::libraryItem() );
     //addItem( new LibraryItem( ("Memory"), "Logic", "subc.png","Memory", NULL ) );
     addItem( FlipFlopD::libraryItem() );
     addItem( FlipFlopT::libraryItem() );
     addItem( FlipFlopRS::libraryItem() );
     addItem( FlipFlopJK::libraryItem() );
     addItem( LatchD::libraryItem() );
-    //addItem( Memory::libraryItem() );
+    addItem( Memory::libraryItem() );
     //addItem( DynamicMemory::libraryItem() );
     //addItem( I2CRam::libraryItem() );
     //addItem( new LibraryItem( ("Converters"), "Logic", "1to2.png","Converters", NULL ) );

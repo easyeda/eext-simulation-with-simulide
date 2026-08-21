@@ -9,9 +9,11 @@
  *                                                                         */
 
 #include "e-diode.h"
+#include <mutex>
 #include "e-pin.h"
 #include "e-node.h"
 #include "simulator.h"
+#include "circuit.h"
 #include "utils.h"
 
 std::unordered_map<std::string, diodeData_t> eDiode::m_diodes;
@@ -24,6 +26,22 @@ eDiode::eDiode( std::string id )
     m_vt = 0.025865;
     m_vzCoef = 1/m_vt;
     m_maxCur = 1;
+
+    // Model parameters must be valid before the first nonlinear stamp.
+    // Previously the model tables were never loaded, so a forward-biased
+    // plain diode used indeterminate values and produced NaNs.
+    static std::once_flag modelsOnce;
+    std::call_once( modelsOnce, [](){ eDiode::getModels(); } );
+
+    diodeData_t defaultModel = { 171.4352819281, 2, 0, 0.05 };
+    auto defaultIt = m_diodes.find( "Diode Default" );
+    if( defaultIt != m_diodes.end() ) defaultModel = defaultIt->second;
+
+    m_model  = "Diode Default";
+    m_satCur = defaultModel.satCur*1e-9;
+    m_emCoef = defaultModel.emCoef;
+    m_bkDown = defaultModel.brkDow;
+    updateValues();
 }
 eDiode::~eDiode(){}
 
@@ -172,7 +190,7 @@ void eDiode::getModels() // Static
     m_leds["RGY Default"] = { 0.0932, 3.73, 0, 0.042 };
 
     //std::string modelsFile = MainWindow::self()->getDataFilePath( "diodes.model" );   -----------------------------通用获取文件路径，后续再研究
-    std::string modelsFile = "E:\\文档\\公司\\cirsim_sim\\cirSim\\cirSim\\resources\\data";
+    std::string modelsFile = Circuit::getDataFilePath( "diodes.model" );
 
     TiXmlDocument domDoc(modelsFile.c_str());
     if (!domDoc.LoadFile())
@@ -181,7 +199,14 @@ void eDiode::getModels() // Static
         return;
     }
 
-    TiXmlElement* itemset = domDoc.RootElement()->FirstChildElement("itemset");
+    TiXmlElement* root = domDoc.RootElement();
+    if( !root )
+    {
+        std::cerr << "Invalid diode model file: " << modelsFile << std::endl;
+        return;
+    }
+
+    TiXmlElement* itemset = root->FirstChildElement("itemset");
     while (itemset)
     {
         const char* typeAttr = itemset->Attribute("type");
@@ -193,15 +218,18 @@ void eDiode::getModels() // Static
         {
             const char* nameAttr = item->Attribute("name");
             std::string name = nameAttr ? nameAttr : "";
-            diodeData_t data;
+            diodeData_t data{};
             item->Attribute("satCurr_nA", &data.satCur);
             item->Attribute("emCoef", &data.emCoef);
             item->Attribute("brkDown", &data.brkDow);
             item->Attribute("resist", &data.resist);
 
-            if (type == "diode") m_diodes[name] = data;
-            else if (type == "zener") m_zeners[name] = data;
-            else if (type == "led") m_leds[name] = data;
+            if( !name.empty() && data.satCur > 0 && data.emCoef > 0 && data.resist >= 0 )
+            {
+                if (type == "diode") m_diodes[name] = data;
+                else if (type == "zener") m_zeners[name] = data;
+                else if (type == "led") m_leds[name] = data;
+            }
 
             item = item->NextSiblingElement("item");
         }

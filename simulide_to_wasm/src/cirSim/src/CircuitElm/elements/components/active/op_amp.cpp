@@ -37,7 +37,6 @@ OpAmp::OpAmp( std::string type, std::string id )
      : Component( type, id )
      , eElement( id )
 {
-
     m_pin.resize( 5 );
     m_pin[0] = m_inputP = new IoPin( id+"-inputNinv", 0, this, input );
 
@@ -74,13 +73,14 @@ OpAmp::~OpAmp(){}
 
 void OpAmp::initialize()
 {
-    m_accuracy = 5e-6;
-
     added = false;
-    m_step = 0;
     m_lastOut = 0;
     m_lastIn  = 0;
-    m_k = 1e-6/m_gain;
+    m_lastSlope = std::numeric_limits<double>::quiet_NaN();
+    m_lastIntercept = std::numeric_limits<double>::quiet_NaN();
+    m_lastRegion = -2;
+    m_lastModelTime = 0;
+    m_effectiveGain = std::copysign( std::min(std::fabs(m_gain), 1.0), m_gain );
 }
 
 void OpAmp::stamp()
@@ -91,6 +91,17 @@ void OpAmp::stamp()
     {
         m_output->getEnode()->addToNoLinList(this);
         m_output->createCurrent();
+        m_output->setImp( m_outImp );
+
+        const int positiveNode = m_inputP->isConnected()
+                               ? m_inputP->getEnode()->getNodeNumber() : -1;
+        const int negativeNode = m_inputN->isConnected()
+                               ? m_inputN->getEnode()->getNodeNumber() : -1;
+        if( positiveNode >= 0 ) m_output->addSingAdm( positiveNode, 0 );
+        // addSingAdm/stampSingAdm 用输出引脚和目标节点标识矩阵项。
+        // 两个输入指向同一节点时只创建一个聚合系数，避免无法区分的重复项。
+        if( negativeNode >= 0 && negativeNode != positiveNode )
+            m_output->addSingAdm( negativeNode, 0 );
     }
 }
 
@@ -103,8 +114,11 @@ void OpAmp::updateStep()
     voltChanged();
 }
 
-void OpAmp::voltChanged() // Called when any pin node change volt
+void OpAmp::voltChanged() // 任一引脚节点电压改变时调用
 {
+    if( !m_inputP->isConnected() || !m_inputN->isConnected()
+     || !m_output->isConnected() ) return;
+
     if( m_powerPins )
     {
         m_voltPos = m_pin[3]->getVoltage();
@@ -115,49 +129,112 @@ void OpAmp::voltChanged() // Called when any pin node change volt
         m_voltPos = m_voltPosDef;
         m_voltNeg = m_voltNegDef;
     }
-    double vd = m_inputP->getVoltage()-m_inputN->getVoltage();
+    const double vd = m_inputP->getVoltage()-m_inputN->getVoltage();
 
-    double out = vd * m_gain;
-    if     ( out > m_voltPos ) out = m_voltPos;
-    else if( out < m_voltNeg ) out = m_voltNeg;
-
-    if( (m_step==0)
-     && (std::fabs(m_lastIn-vd) < m_accuracy )
-     && (std::fabs(out-m_lastOut) < m_accuracy) )
-    { m_step = 0; return; }         // Converged
-
-    Simulator::self()->notCorverged();
-
-    if( m_step==0 )                  // First step after a convergence
+    double slope = 0;
+    double out = 0;
+    double intercept = 0;
+    int region = 0;
+    auto updateModel = [&]()
     {
-        double dOut = -1e-6;         // Do a tiny step to se what happens
-        if( vd>0 ) dOut = 1e-6;
-
-        out = m_lastOut + dOut;
-        m_step = 1;
-    } 
-    else 
-    {
-        if( m_lastIn != vd ) // We problably are in a close loop configuration
+        const double target = vd*m_effectiveGain;
+        slope = m_effectiveGain;
+        out = target;
+        region = 0;
+        if( target > m_voltPos )
         {
-            double dIn  = std::fabs(m_lastIn-vd); // Input diff with last step
-            out = (m_lastOut*dIn + vd*1e-6)/(dIn + m_k); // Guess next converging output:
+            out = m_voltPos;
+            slope = 0;
+            region = 1;
         }
-        m_step = 0;
-    }
-    if     ( out >= m_voltPos ) out = m_voltPos;
-    else if( out <= m_voltNeg ) out = m_voltNeg;
+        else if( target < m_voltNeg )
+        {
+            out = m_voltNeg;
+            slope = 0;
+            region = -1;
+        }
+        intercept = out-slope*vd;
+    };
+    updateModel();
 
+    // 正反馈比较器在新的瞬态时刻可能从饱和支路跨入线性区，
+    // 满增益牛顿步会在两个工作区之间反复跳变。仅当新仿真时刻
+    // 引起工作区变化时重启增益续接；同一时刻续接过程自身的换区必须放行。
+    Simulator* simulator = Simulator::self();
+    const uint64_t modelTime = simulator->circTime();
+    if( modelTime != m_lastModelTime && m_lastRegion != -2
+     && region != m_lastRegion
+     && std::fabs(m_effectiveGain) >= std::fabs(m_gain) )
+    {
+        m_effectiveGain = std::copysign( std::min(std::fabs(m_gain), 1.0), m_gain );
+        updateModel();
+    }
+
+    // 增益续接为连续求解提供邻近工作点。若饱和区产生相同矩阵印章，
+    // 可直接跳过这些续接值，直到模型变化或达到设定增益。
+    while( slope == m_lastSlope && intercept == m_lastIntercept
+        && std::fabs(m_effectiveGain) < std::fabs(m_gain) )
+    {
+        const double nextMagnitude = std::min( std::fabs(m_gain),
+                                                std::fabs(m_effectiveGain)*1.5 );
+        m_effectiveGain = std::copysign( nextMagnitude, m_gain );
+        updateModel();
+    }
+
+    // 分段线性牛顿形式：Vout = slope*(V+ - V-) + intercept。
+    // 斜率和截距未变化时，当前矩阵已精确表示该工作区。
+    if( slope == m_lastSlope && intercept == m_lastIntercept ) return;
+
+    if( simulator->convergenceDiagnosticsEnabled() )
+    {
+        std::ostringstream convergenceState;
+        convergenceState << "vd=" << vd
+                         << " targetOut=" << out
+                         << " previousIn=" << m_lastIn
+                         << " previousOut=" << m_lastOut
+                         << " slope=" << slope
+                         << " rails=[" << m_voltNeg << ',' << m_voltPos << ']';
+        simulator->notCorverged( m_elmId, convergenceState.str() );
+    }
+    else simulator->notCorverged();
+
+    const int positiveNode = m_inputP->getEnode()->getNodeNumber();
+    const int negativeNode = m_inputN->getEnode()->getNodeNumber();
+    const double outputAdmitance = 1/m_outImp;
+    if( positiveNode == negativeNode )
+        m_output->stampSingAdm( positiveNode, 0 );
+    else
+    {
+        m_output->stampSingAdm( positiveNode,  outputAdmitance*slope );
+        m_output->stampSingAdm( negativeNode, -outputAdmitance*slope );
+    }
+    m_output->stampCurrent( outputAdmitance*intercept );
+
+    m_lastSlope = slope;
+    m_lastIntercept = intercept;
+    m_lastRegion = region;
+    m_lastModelTime = modelTime;
     m_lastIn  = vd;
     m_lastOut = out;
+}
 
-    m_output->stampCurrent( out/m_outImp );
+void OpAmp::setGain( double gain )
+{
+    m_gain = gain;
+    m_effectiveGain = std::copysign( std::min(std::fabs(m_gain), 1.0), m_gain );
+    m_lastSlope = std::numeric_limits<double>::quiet_NaN();
+    m_lastIntercept = std::numeric_limits<double>::quiet_NaN();
+    m_lastRegion = -2;
+    m_lastModelTime = 0;
+    m_changed = true;
 }
 
 void OpAmp::setOutImp( double imp )
 {
     if( imp < cero_doub ) imp = cero_doub;
     m_outImp = imp;
+    m_lastSlope = std::numeric_limits<double>::quiet_NaN();
+    m_lastIntercept = std::numeric_limits<double>::quiet_NaN();
     m_changed = true;
     if( !Simulator::self()->isRunning() ) updateStep();
 }
