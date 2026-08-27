@@ -124,6 +124,7 @@ void IoComponent::initState()
 
 void IoComponent::runOutputs()
 {
+    if( m_outQueue.empty() ) return;          // 保护：runEvent 可能被非本队列事件触发
     m_outValue = m_outQueue.front();
     m_outQueue.pop();
 
@@ -142,30 +143,25 @@ void IoComponent::runOutputs()
 
 void IoComponent::scheduleOutPuts( eElement* el )
 {
-    // uint64_t delay = m_delayBase*m_delayMult;
+    uint64_t delay = m_delayBase*m_delayMult;
 
-    // if( !delay )
-    // {
+    if( !delay ) {                            // 零延迟：立即输出
         if( m_nextOutVal == m_outValue ) return;
         m_outValue = m_nextOutVal;
         for( uint32_t i=0; i<m_outPin.size(); ++i )
             m_outPin[i]->scheduleState( m_outValue & (1<<i), 0 );
-    //     return;
-    // }
-    // if(  m_outQueue.empty() )
-    // {
-    //     if( m_nextOutVal == m_outValue ) return;
-    //     Simulator::self()->addEvent( delay, el );
-    // }
-    // else          // New Event while previous Event not dispatched
-    // {
-    //     if( m_nextOutVal == m_outQueue.back() ) return;
-    //     uint64_t nextTime = Simulator::self()->circTime()+delay;
-    //     m_timeQueue.push( nextTime );
-
-    //     m_eElement = el;
-    // }
-    // m_outQueue.push( m_nextOutVal );
+        return;
+    }
+    if( m_outQueue.empty() ) {                // 队列空：入队首元素 + 调度一个事件
+        if( m_nextOutVal == m_outValue ) return;
+        Simulator::self()->addEvent( delay, el );
+    } else {                                  // 已有排队：追加时间戳（事件循环接续调度）
+        if( m_nextOutVal == m_outQueue.back() ) return;
+        uint64_t nextTime = Simulator::self()->circTime()+delay;
+        m_timeQueue.push( nextTime );
+        m_eElement = el;
+    }
+    m_outQueue.push( m_nextOutVal );
 }
 
 void IoComponent::setSupplyV( double v )
