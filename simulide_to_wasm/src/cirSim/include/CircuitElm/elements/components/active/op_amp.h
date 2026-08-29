@@ -9,6 +9,10 @@
 
 #pragma once
 
+#include <array>
+#include <cstdint>
+#include <limits>
+
 #include "component.h"
 #include "e-element.h"
 
@@ -41,11 +45,11 @@ class OpAmp : public Component, public eElement
 
         // 获取和设置正输入电压
         double voltPos() { return m_voltPosDef; }
-        void setVoltPos( double v ) { m_voltPosDef = v; m_changed = true; }
+        void setVoltPos( double v );
 
         // 获取和设置负输入电压
         double voltNeg() { return m_voltNegDef; }
-        void setVoltNeg( double v ) { m_voltNegDef = v; m_changed = true; }
+        void setVoltNeg( double v );
 
         // 获取和设置电源引脚状态
         bool powerPins() {return m_powerPins; }
@@ -57,25 +61,63 @@ class OpAmp : public Component, public eElement
 
 
     protected:
+        enum class Region : std::int8_t
+        {
+            Invalid  = -2,
+            Negative = -1,
+            Linear   = 0,
+            Positive = 1
+        };
+
+        // 一次运放分段线性化后实际写入矩阵的仿射模型。
+        struct Linearization
+        {
+            Region region = Region::Invalid;
+            double slope = 0;
+            double intercept = 0;
+        };
+
+        // 只在一次 solveCircuit 调用中有效的主动集历史。
+        struct ActiveSetState
+        {
+            uint64_t solveEpoch = std::numeric_limits<uint64_t>::max();
+            std::array<Linearization, 2> recentModels;
+            // 三种区域对在一次求解中各只允许换基一次，保证尝试次数有界。
+            std::array<bool, 3> attemptedRegionPairs{};
+        };
+
+        // 运放的数值求解状态；与器件配置和电气参数分开管理。
+        struct SolverState
+        {
+            double effectiveGain = 0;
+            Linearization stampedModel;
+            uint64_t lastStampTime = 0;
+            ActiveSetState activeSet;
+        };
+
         // 更新属性方法,图形界面
         void udtProperties();
+        void resetSolverState();
+        void beginSolveEpoch( uint64_t solveEpoch );
+        void recordStampedModel( const Linearization& model );
+
+        static bool sameLinearization( const Linearization& lhs,
+                                       const Linearization& rhs );
+        static bool sameEquation( const Linearization& lhs,
+                                  const Linearization& rhs );
+        static int regionPairIndex( Region first, Region second );
+        static Region remainingRegion( Region first, Region second );
 
         bool m_powerPins;   // 电源引脚状态
         bool m_switchPins;  // 引脚切换状态
 
         double m_gain;      // 增益
-        double m_effectiveGain; // 工作点求解期间使用的续接增益
         double m_voltPos;   // 正输入电压
         double m_voltNeg;   // 负输入电压
         double m_voltPosDef;// 默认正输入电压
         double m_voltNegDef;// 默认负输入电压
-        double m_lastOut;   // 上次输出电压
-        double m_lastIn;    // 上次输入电压
         double m_outImp;    // 输出阻抗
-        double m_lastSlope;
-        double m_lastIntercept;
-        int m_lastRegion;        // -1：负电源轨，0：线性区，1：正电源轨
-        uint64_t m_lastModelTime;
+        SolverState m_solverState;
 
         IoPin* m_inputP;    // 正输入引脚
         IoPin* m_inputN;    // 负输入引脚

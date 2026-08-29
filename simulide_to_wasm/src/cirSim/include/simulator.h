@@ -137,7 +137,10 @@ class Simulator
 
         uint64_t circTime() { return m_circTime; }              //返回电路仿真时间
 
-        void timerEvent();                                      // 处理定时器事件，猜测与更新仿真状态有关  
+        // 每次 solveCircuit 调用递增，用于隔离器件的单次求解临时状态。
+        uint64_t solveEpoch() const { return m_solveEpoch; }
+
+        void timerEvent();                                      // 处理定时器事件，猜测与更新仿真状态有关
 
         simState_t simState() { return m_state; }               //返回仿真器当前状态
 
@@ -262,6 +265,7 @@ class Simulator
         std::unordered_map<std::string, std::string> m_nonConvergedStates;
         std::array<std::pair<std::string, std::string>, 32> m_nonConvergedTrace;
         uint32_t m_nonConvergedTraceCount = 0;
+        uint64_t m_solveEpoch;
         bool m_convergenceDiagnostics = false;
 
         uint64_t m_circTime;      //表示电路仿真的总时间，从仿真开始到当前时刻的累计时间。

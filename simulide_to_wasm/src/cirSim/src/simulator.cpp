@@ -243,6 +243,8 @@ void Simulator::runCircuit()
 
 void Simulator::solveCircuit()
 {
+    ++m_solveEpoch;
+
     //循环会持续进行，直到没有更多改变的节点（m_changedNode），没有非线性组件需要处理（m_nonLinear），并且电路已经收敛（m_converged）。
     while( m_changedNode || m_nonLinear || !m_converged ) // Also Proccess changes gererated in voltChanged()
     {
@@ -350,6 +352,7 @@ void Simulator::resetSim()
     m_circTime = 1;
     m_updtTime = 0;
     m_NLstep   = 0;
+    m_solveEpoch = 0;
     m_nonConvergedCounts.clear();
     m_nonConvergedStates.clear();
     m_nonConvergedTraceCount = 0;
