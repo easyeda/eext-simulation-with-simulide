@@ -35,9 +35,14 @@ class eMosfet : public eResistor
         
     protected:
         void updateValues();
+        void updateVI() override;
 
-        double m_accuracy;
-        double m_lastCurrent;
+        // 已写入矩阵的沟道切线：Id = gds*Vds + gm*Vgs + Ieq。
+        double m_gm = 0;
+        double m_equivalentCurrent = 0;
+        bool m_linearizationValid = false;
+        double m_linearizedVgs = 0;
+        double m_linearizedVds = 0;
         double m_threshold;
         double m_kRDSon;
         double m_RDSon;

@@ -138,11 +138,17 @@ void Simulator::timerEvent()  //update at m_timerTick_ms rate (50 ms, 20 Hz max)
             std::cout << "Running" << std::endl;
     }
 
-     // 如果上一轮电路任务尚未完成，等待它完成。
+     //如果电路的并行线程尚未完成，等待它完成
      {
         std::lock_guard<std::mutex> lock(simStateMutex);
 #ifndef __EMSCRIPTEN__
-        if( m_CircuitFuture.valid() ) m_CircuitFuture.wait();
+        if (m_CircuitFuture.valid() && m_state != SIM_WAITING)
+        {
+            simState_t state = m_state;
+            m_state = SIM_WAITING;
+            m_CircuitFuture.wait(); // 等待异步任务完成
+            m_state = state;
+        }
 #endif
      }
 
