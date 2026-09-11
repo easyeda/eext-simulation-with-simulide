@@ -2,6 +2,10 @@
 
 **eext-simulation-with-simulide** —— 基于 SimulIDE 的 WebAssembly 电路仿真引擎，为嘉立创EDA专业版 / EasyEDA 提供浏览器端实时电路仿真能力（C++20 编写，经 Emscripten 编译为 WASM，以扩展插件形式集成）。
 
+## 1.9.1
+
+- 修复 MOS 管仿真收敛失败的问题。
+
 ## 1.8.2
 
 - 为逻辑门添加传播延时，避免触发器反馈环锁死。
