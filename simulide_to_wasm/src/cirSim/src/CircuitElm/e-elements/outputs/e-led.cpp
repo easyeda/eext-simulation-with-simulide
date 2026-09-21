@@ -21,10 +21,11 @@ eLed::eLed( std::string id )
     m_vt = 0.025865;
     m_vzCoef = 1/m_vt;
     m_satCur = 1e-10;
-    m_emCoef = 10;
+    m_emCoef = 2;
     m_bkDown = 0;
 
- updateDiodeValues();
+    updateDiodeValues();
+    updtSatCur();
     eLed::initialize();
 }
 eLed::~eLed() {}
@@ -32,6 +33,7 @@ eLed::~eLed() {}
 void eLed::initialize()
 {
     m_converged = true;
+    m_step       = 0;    
     m_prevStep     = 0;
     m_avgCurrent   = 0.;
     m_intensity    = 0;
@@ -92,12 +94,25 @@ void eLed::voltChanged()
     }
     m_voltPN = voltPN;
 
-    double eval = std::exp( voltPN*m_vdCoef );
+    double vJ = voltPN - m_imped*m_current;      // 初值: 上一轮电流对应的结电压
+    if( vJ > voltPN ) vJ = voltPN;               // 正向时结电压不高于端电压
+    for( int i=0; i<50; ++i )
+    {
+        double eJ   = std::exp( vJ*m_vdCoef );
+        double f    = vJ + m_satCur*(eJ-1)*m_imped - voltPN;
+        double df   = 1 + m_imped*m_satCur*eJ*m_vdCoef;
+        double step = f/df;
+        vJ -= step;
+        if( vJ > voltPN + m_satCur*m_imped ) vJ = voltPN + m_satCur*m_imped;
+        if( std::fabs(step) < 1e-12 ) break;
+    }
+    double eJ  = std::exp( vJ*m_vdCoef );
+    double diJ = m_satCur*eJ*m_vdCoef;           // dI/dV结
 
     if( m_bkDown == 0 || voltPN >= 0  )  // No breakdown Diode or Forward biased Zener
     {
-        m_admit   = m_satCur * m_vdCoef*eval + gmin;
-        m_current = m_satCur * (eval-1);
+        m_admit   = diJ/(1 + m_imped*diJ) + gmin;
+        m_current = m_satCur * (eJ-1);
     }
     eResistor::stampAdmit();
 
@@ -175,9 +190,8 @@ inline double eLed::limitStep( double vnew, double vold, double scale, double vc
 void eLed::setThreshold( double threshold )
 {
     if( threshold < 0.01 ) return;
-    // m_threshold = threshold;
-    m_satCur =  m_vScale/(std::exp(threshold/m_vScale)*std::sqrt(2));
-    updateDiodeValues();
+    m_threshold = threshold;  
+    updtSatCur();
 }
 
 
@@ -220,9 +234,20 @@ void eLed::setRes( double resist )
 
     if( resist == 0 ) resist = 0.1;
     m_imped = resist;
+    updtSatCur();     // Rs 参与标定, 保持 Vf(MaxCurrent) 语义不变
     voltChanged();
 
     Simulator::self()->resumeSim();
+}
+
+
+void eLed::updtSatCur()
+{
+    double vJ = m_threshold - m_imped*m_maxCurrent;   
+    if( vJ > m_vScale*700 ) vJ = m_vScale*700;        // 防exp溢出(阈值异常大时)
+    if( vJ < m_vScale     ) vJ = m_vScale;            // 阈值过小/串阻过大时退化为准线性
+    m_satCur = m_maxCurrent/(std::exp( vJ/m_vScale )-1);
+    updateDiodeValues();
 }
 std::string eLed::getElementStatusData()
 {

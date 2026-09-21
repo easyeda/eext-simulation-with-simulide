@@ -32,8 +32,9 @@ if(EMSCRIPTEN)
         -sEXPORTED_RUNTIME_METHODS=[\"ccall\",\"cwrap\",\"FS\"] \
         -sEXIT_RUNTIME=0 \
         -sNO_DISABLE_EXCEPTION_CATCHING \
-        -sASSERTIONS=1 \
+        -sASSERTIONS=1 -sSTACK_SIZE=4194304 \
         -sFORCE_FILESYSTEM=1 \
+        --emit-symbol-map \
         --embed-file ${CMAKE_SOURCE_DIR}/config/data@/config/data \
     ")
 

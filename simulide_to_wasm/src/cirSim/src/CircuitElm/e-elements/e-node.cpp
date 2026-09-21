@@ -222,7 +222,7 @@ void eNode::changed()
 
 void eNode::stampMatrix()
 {
-    if( m_nodeNum < 0 ) return;
+    if( m_nodeNum <= 0 ) return;
     m_changed = false;
 
     if( m_admitChanged )

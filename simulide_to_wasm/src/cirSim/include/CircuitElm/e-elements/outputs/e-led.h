@@ -26,7 +26,7 @@ class eLed : public eResistor
         void  setThreshold( double threshold );
 
         double maxCurrent()             { return m_maxCurrent; }
-        void  setMaxCurrent( double c ) { m_maxCurrent = c; m_changed = true; }
+        void  setMaxCurrent( double c ) { if( c < 1e-12 ) return; m_maxCurrent = c; updtSatCur(); }
 
         virtual void   setRes( double resist ) override ;
         virtual double res() override { return m_imped; }
@@ -76,5 +76,6 @@ class eLed : public eResistor
 
         inline double limitStep( double vnew, double vold, double scale, double vc );
         void updateDiodeValues();
+        void updtSatCur();   // 标定 Isat: 使 MaxCurrent 下端电压降 = Threshold
 };
 
