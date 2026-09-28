@@ -85,16 +85,13 @@ void eReactive::runEvent()
 {
     double volt = m_ePin[0]->getVoltage() - m_ePin[1]->getVoltage();
 
-    if( m_volt != volt )
+
+    // 为电感添加储能，续流。
+    double newSource = updtCurr();   // 电感: src - m_volt*G ; 电容: m_volt*G (m_volt=上一帧)
+    m_volt = volt;                   // 记录本帧电压, 供下一帧更新用
+    if( newSource != m_curSource )
     {
-        /*if( m_voltChanged )
-        {
-            updtReactStep();
-            m_voltChanged = false;
-            m_lastTime = 0;
-        }*/
-        m_volt = volt;
-        m_curSource = updtCurr();
+        m_curSource = newSource;
 
         m_ePin[0]->stampCurrent( m_curSource );
         m_ePin[1]->stampCurrent(-m_curSource );
