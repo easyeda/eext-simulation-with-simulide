@@ -1,8 +1,8 @@
 {
 	"name": "simulation-with-simulide",
 	"uuid": "da6f02cde1cd4384abe56140588973b1",
-	"displayName": "SimulIDE仿真",
-	"description": "SimulIDE仿真引擎，安装后可以在SimulIDE仿真图页中进行动态仿真",
+	"displayName": "SimulIDE电路仿真",
+	"description": "SimulIDE电路仿真引擎，安装后可以在SimulIDE仿真图页中进行动态仿真",
 	"version": "1.10.1",
 	"publisher": "EasyEDA",
 	"engines": {
