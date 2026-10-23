@@ -56,5 +56,10 @@ target_include_directories(CirSimModule
         ${CMAKE_SOURCE_DIR}/src/cirSim/include/CircuitElm/elements/components/micro
         ${CMAKE_SOURCE_DIR}/src/cirSim/include/CircuitElm/elements/components/other
         ${CMAKE_SOURCE_DIR}/src/cirSim/include/CircuitElm/elements/subcircuits
+        ${CMAKE_SOURCE_DIR}/external/suitesparse/SuiteSparse_config
+        ${CMAKE_SOURCE_DIR}/external/suitesparse/KLU/Include
+        ${CMAKE_SOURCE_DIR}/external/suitesparse/AMD/Include
+        ${CMAKE_SOURCE_DIR}/external/suitesparse/BTF/Include
+        ${CMAKE_SOURCE_DIR}/external/suitesparse/COLAMD/Include
 )
 

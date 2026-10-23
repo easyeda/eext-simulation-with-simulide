@@ -39,6 +39,9 @@ Simulator::Simulator()
 
     currentModelEnable = true;
 
+    // 排查用: 设为 true 时打印未收敛元件的状态
+    m_convergenceDiagnostics = false;
+
 
     m_maxNlstp  = 100000;
     m_slopeSteps = 0;
@@ -170,11 +173,10 @@ void Simulator::timerEvent()  //update at m_timerTick_ms rate (50 ms, 20 Hz max)
 
 
 
-    //更新连接器
     if ((m_circTime - m_updtTime) >= 2e8)
     {
-        //Circuit::self()->updateConnectors();
-        for (eNode* node : m_eNodeList) node->updateConnectors();
+        // Circuit::self()->updateConnectors();
+        // for (eNode* node : m_eNodeList) node->updateConnectors();
         m_updtTime = m_circTime;
     }
 
@@ -206,8 +208,8 @@ void Simulator::runCircuit()
         if(m_state < SIM_RUNNING) return;
 
 
-        eElement* event = m_firstEvent;             //指向电路事件的指针，并初始化为第一个事件的指针。
         uint64_t endRun = m_circTime + m_analogClock.getStep();      // Run upto next Timer event  计算运行结束的时间
+        eElement* event = m_firstEvent;             //指向电路事件的指针，并初始化为第一个事件的指针。
         uint64_t nextTime;                          //存储下一个事件的时间戳。
 
         //模拟器的事件循环。
@@ -374,6 +376,7 @@ void Simulator::resetSim()
 void Simulator::createNodes()
 {
     std::cout <<"\ncreateNodes...\n";
+    ++m_nodeListGen; //节点列表重建,通知缓存失效(probe/ammeter监控缓存)
     //提前清空电路节点
     for( eNode* enode : m_eNodeList )
     {
@@ -660,24 +663,26 @@ void Simulator::addToStatusElementList( eElement* el )
         m_statusElementList.push_back(el);
     ElementStatus* data = new ElementStatus(el->getId(), 100000);   //长度定义后续需要优化
     m_statusElementData.push_back(data);
+    m_statusDataById[el->getId()].push_back(data); // id索引,updateStatusData 避免双循环
  }
 //移除一个状态元件
 void Simulator::remFromStatusElementList( eElement* el )
 {
     auto it = std::remove(m_statusElementList.begin(), m_statusElementList.end(), el);
     m_statusElementList.erase(it, m_statusElementList.end());
+    m_statusDataById.erase( el->getId() ); // 同步索引(数据本体保留于 m_statusElementData, 与原行为一致)
 }
 
 void Simulator::updateStatusData(uint64_t currentTime)
 {
+    uint64_t inputTime = currentTime;
     for(auto statusElement: m_statusElementList){
-       for(auto statusElementData:m_statusElementData){
-            if(statusElement->getId() == statusElementData->id){
-                uint64_t inputTime = currentTime;
-                std::string inputMes = statusElement->getElementStatusData();
-                statusElementData->datas.push(std::make_pair(inputTime,inputMes));
-            }
-       }
+        auto itById = m_statusDataById.find( statusElement->getId() );
+        if( itById == m_statusDataById.end() ) continue;
+        std::string inputMes = statusElement->getElementStatusData();
+        for(auto statusElementData : itById->second){
+            statusElementData->datas.push(std::make_pair(inputTime,inputMes));
+        }
     }
 }
 

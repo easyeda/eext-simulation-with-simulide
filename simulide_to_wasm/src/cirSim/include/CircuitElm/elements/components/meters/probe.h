@@ -23,6 +23,7 @@
 #include "component.h"
 
 class LibraryItem;
+class eNode;
 
 
 class Probe:public Meter
@@ -30,6 +31,10 @@ class Probe:public Meter
 private:
     std::unordered_map<std::string,MeterData*> probes; //行是示波器个数，列是采样点个数，以后可以用变量来定义
     std::string m_voltMes;
+    // 探针缓存
+    std::vector<std::pair<eNode*, MeterData*>> m_watchCache;
+    bool m_watchBuilt = false;
+    uint64_t m_watchGen = 0;
 public:
     Probe(std::string type,std::string id);
     ~Probe();

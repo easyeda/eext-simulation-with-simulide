@@ -22,11 +22,17 @@
 #include "meter.h"
 
 class LibraryItem;
+class eElement;
 
 class Ammeter:public Meter
 {
 private:
     std::unordered_map<std::string,MeterData*> currentsData; //行是示波器个数，列是采样点个数，以后可以用变量来定义
+    // Wire列表缓存
+    std::vector<std::pair<eElement*, MeterData*>> m_wireCache;
+    bool m_wireBuilt = false;
+    size_t m_wireElemCount = 0;
+    uint64_t m_wireGen = 0;
 public:
     Ammeter(std::string type,std::string id);
     ~Ammeter();

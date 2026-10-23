@@ -165,8 +165,9 @@ class Simulator
         OutputData getOutputData();                             //获取电路中所有仪表数据
         void updateoutPutData();
 
-        std::vector<eNode*> getNodeList(){return m_eNodeList;}  //获取电路节点列表
-        std::vector<eElement*> getElementList(){return m_elementList;}
+        const std::vector<eNode*>& getNodeList(){return m_eNodeList;}  //获取电路节点列表(引用,避免拷贝)
+        const std::vector<eElement*>& getElementList(){return m_elementList;}
+        uint64_t nodeListGen() const { return m_nodeListGen; }  //节点列表版本号,createNodes重建时递增
         std::vector<eElement*> getStatusElementList(){return m_statusElementList;}
 
         void addToUpdateList( Updatable* el );                  //将可更新的电路元素添加到仿真器的可更新电路元素链表中
@@ -230,6 +231,8 @@ class Simulator
         std::vector<Socket*> m_socketList;
         std::vector<Meter*> meterList;
         std::vector<ElementStatus*> m_statusElementData;
+        std::unordered_map<std::string, std::vector<ElementStatus*>> m_statusDataById; // id→数据索引,避免每次全表双循环
+        uint64_t m_nodeListGen = 0; //节点列表版本号
         std::future<void> m_dataUpdateFuture; // 异步数据更新任务
         std::promise<void> m_dataUpdatePromise; // 数据更新完成通知
         std::atomic<bool> m_dataUpdateComplete{true}; // 数据更新完成标志

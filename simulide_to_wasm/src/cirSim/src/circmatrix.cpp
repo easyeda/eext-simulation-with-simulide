@@ -10,6 +10,9 @@
 #include "circmatrix.h"
 #include "simulator.h"
 
+// 大块稀疏 LU: SuiteSparse KLU (external/suitesparse)
+#include "klu.h"
+
 CircMatrix* CircMatrix::m_pSelf = 0l;
 
 CircMatrix::CircMatrix()
@@ -19,10 +22,28 @@ CircMatrix::CircMatrix()
 }
 
 
-CircMatrix::~CircMatrix(){}
+CircMatrix::~CircMatrix()
+{
+    // 释放 KLU 符号/数值因子
+    klu_common c; klu_defaults( &c );
+    for( KLUBlock& kb : m_klu )
+    {
+        if( kb.num ) klu_free_numeric( (klu_numeric**)&kb.num, &c );
+        if( kb.sym ) klu_free_symbolic( (klu_symbolic**)&kb.sym, &c );
+    }
+}
 
 void CircMatrix::createMatrix( std::vector<eNode*> &eNodeList )
 {
+    // 若上一次仿真残留 KLU 因子, 先释放
+    klu_common c; klu_defaults( &c );
+    for( KLUBlock& kb : m_klu )
+    {
+        if( kb.num ) klu_free_numeric( (klu_numeric**)&kb.num, &c );
+        if( kb.sym ) klu_free_symbolic( (klu_symbolic**)&kb.sym, &c );
+    }
+    m_klu.clear();
+
     m_eNodeList = &eNodeList;
     m_numEnodes = (int)eNodeList.size();
 
@@ -133,6 +154,10 @@ void CircMatrix::analyze()
             m_bList.push_back( std::move(b) );
             m_eNodeActList.push_back( std::move(eNodeActive) );
             m_permutations.emplace_back();
+
+            KLUBlock kb;
+            kb.n = numEnodes >= KLU_MIN_SIZE ? numEnodes : 0;  // 0 表示走稠密
+            m_klu.push_back( std::move(kb) );
             group++;
         }
     }
@@ -165,6 +190,17 @@ bool CircMatrix::solveMatrix()
 
 void CircMatrix::factorMatrix( int n, int group ) // Factor matrix into Lower/Upper triangular
 {
+    // 大块走 KLU 稀疏 LU: 每帧导纳变化都需要重分解, 稀疏远快于稠密
+    if( group < (int)m_klu.size() && m_klu[group].n == n && n >= KLU_MIN_SIZE )
+    {
+        buildCSC( group );
+        kluFactor( group );
+        // KLU 按默认 halt_if_singular 判奇异时返回空因子; 此处退回稠密 LU,
+        // 与未接入 KLU 时的数值行为一致(稠密 LU 对近奇异主元只跳过不求值)。
+        if( m_klu[group].kluOk ) return;
+    }
+
+    // 小块保持稠密 LU(开销低, 数值行为不变)
     dp_matrix_t &apPtrs = m_aList[group];
     DenseMat &LU = m_aFaList[group];
     std::vector<int> &perm = m_permutations[group];
@@ -200,7 +236,7 @@ void CircMatrix::factorMatrix( int n, int group ) // Factor matrix into Lower/Up
         for(int i=k+1;i<n;++i){
             double *rowi = LU.rowPtr(i);
             double mult = rowi[k] / diag;
-            rowi[k] = mult; 
+            rowi[k] = mult;
             for(int j=k+1;j<n;++j) rowi[j] -= mult * rowk[j];
         }
     }
@@ -208,6 +244,13 @@ void CircMatrix::factorMatrix( int n, int group ) // Factor matrix into Lower/Up
 
 bool CircMatrix::luSolve( int n, int group ) // Solves the system to get voltages for each node
 {
+    // 大块用 KLU(KLU 分解失败走下面的稠密路径)
+    if( group < (int)m_klu.size() && m_klu[group].n == n && n >= KLU_MIN_SIZE
+     && m_klu[group].kluOk )
+    {
+        return kluSolveBlock( group );
+    }
+
     const DenseMat &LU = m_aFaList[group];
     const dp_vector_t &bp = m_bList[group];
     const std::vector<int> &perm = m_permutations[group];
@@ -250,4 +293,105 @@ bool CircMatrix::luSolve( int n, int group ) // Solves the system to get voltage
         m_eNodeActive->at(i)->setVolt( x[i] );
     }
     return isOk;
+}
+
+// 从稠密 m_circMatrix 子块提取 CSC (Ap/Ai/Ax) 供 KLU 使用
+// 注: 大块在引擎里仍是按 (row,col) 密集存取, 此处转成 CSC 送给 KLU。
+void CircMatrix::buildCSC( int group )
+{
+    KLUBlock& kb = m_klu[group];
+    int n = kb.n;
+    dp_matrix_t &apPtrs = m_aList[group];  // apPtrs[row][col] = &A[row][col]
+
+
+    static thread_local std::vector<int> colCount;
+    if( (int)colCount.size() != n ) colCount.assign( n, 0 );
+    else
+        std::fill( colCount.begin(), colCount.end(), 0 );
+
+    // 统计每列非零数(按值非零, 结构轻量)
+    for( int col=0; col<n; ++col )
+    {
+        int cnt = 0;
+        for( int row=0; row<n; ++row )
+            if( *(apPtrs[row][col]) != 0.0 ) ++cnt;
+        colCount[col] = cnt;
+    }
+
+    if( (int)kb.Ap.size() != n+1 ) kb.Ap.resize( n+1 );  // 保证 Ap 尺寸,否则越界写
+    int nz = 0;
+    for( int c=0; c<n; ++c ){ kb.Ap[c] = nz; nz += colCount[c]; }
+    kb.Ap[n] = nz;
+
+    // Ai/Ax 仅当结构(非零量)变化时才重分配;否则复用缓冲区只覆写数值
+    if( (int)kb.Ai.size() != nz ){ kb.Ai.resize( nz ); kb.Ax.resize( nz ); }
+
+    for( int col=0; col<n; ++col )
+    {
+        int base = kb.Ap[col];
+        int k = 0;
+        for( int row=0; row<n; ++row )
+        {
+            double v = *(apPtrs[row][col]);
+            if( v != 0.0 )
+            {
+                kb.Ai[base+k] = row;
+                kb.Ax[base+k] = v;
+                ++k;
+            }
+        }
+    }
+}
+
+// KLU 符号+数值分解; 符号部分仅在首次/结构变化时执行
+void CircMatrix::kluFactor( int group )
+{
+    KLUBlock& kb = m_klu[group];
+    klu_common Common; klu_defaults( &Common );
+    kb.kluOk = false;   
+
+    if( kb.num ) { klu_free_numeric( (klu_numeric**)&kb.num, &Common ); kb.num = nullptr; }
+
+    if( kb.sym && (kb.symAp != kb.Ap || kb.symAi != kb.Ai) )
+    {
+        klu_free_symbolic( (klu_symbolic**)&kb.sym, &Common );
+        kb.sym = nullptr;
+        kb.symbolicDone = false;
+    }
+
+    if( !kb.symbolicDone || !kb.sym )
+    {
+        kb.sym = klu_analyze( kb.n, kb.Ap.data(), kb.Ai.data(), &Common );
+        if( kb.sym )
+        {
+            kb.symAp = kb.Ap;   // 记录本次符号分解对应的结构
+            kb.symAi = kb.Ai;
+        }
+        kb.symbolicDone = (kb.sym != nullptr);
+    }
+    if( !kb.sym ) return;
+
+    kb.num = klu_factor( kb.Ap.data(), kb.Ai.data(), kb.Ax.data(),
+                         (klu_symbolic*)kb.sym, &Common );
+    kb.kluOk = (kb.num != nullptr);
+}
+
+// KLU 求解(复用已分解数因子), 结果写回节点
+bool CircMatrix::kluSolveBlock( int group )
+{
+    KLUBlock& kb = m_klu[group];
+    if( !kb.num || !kb.sym ) return false;
+    int n = kb.n;
+
+    const dp_vector_t &bp = m_bList[group];
+    std::vector<double> b(n);
+    for(int i=0;i<n;++i) b[i] = *(bp[i]);
+
+    klu_common Common; klu_defaults( &Common );
+    int ok = klu_solve( (klu_symbolic*)kb.sym, (klu_numeric*)kb.num, n, 1,
+                        b.data(), &Common );
+
+    // Write back voltages to nodes
+    for(int i=0;i<n;++i) m_eNodeActive->at(i)->setVolt( b[i] );
+    return ok != 0;
 }

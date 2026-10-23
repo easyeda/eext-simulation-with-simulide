@@ -3,7 +3,7 @@ import embeddedSimulideWasmBase64 from '../wasm/lceda-pro-sim-server.wasm';
 
 const SIMULIDE_JS = 'wasm/lceda-pro-sim-server.js';
 const SIMULIDE_WASM = 'wasm/lceda-pro-sim-server.wasm';
-const DEBUG = true;
+const DEBUG = false;
 
 type CCallReturnType = 'number' | 'string' | 'boolean' | 'array' | 'null' | null;
 
@@ -82,7 +82,8 @@ let stepTimerId: number | null = null;
 let dataTimerId: number | null = null;
 let isSimulationRunning = false;
 
-const DATA_PUSH_INTERVAL_MS = 20;
+const STEP_INTERVAL_MS = 20;
+const DATA_PUSH_INTERVAL_MS = 120;
 const MIN_STEP_INTERVAL_MS = 5;
 const MAX_STEP_INTERVAL_MS = 100;
 
@@ -330,7 +331,7 @@ function startStepTimer(): void {
 			stopTimers();
 			debugLog('Simulation step error', e);
 		}
-	}, DATA_PUSH_INTERVAL_MS) as unknown as number;
+	}, STEP_INTERVAL_MS) as unknown as number;
 }
 
 function startDataTimer(): void {

@@ -426,7 +426,7 @@ void eNode::addToNoLinList( eElement* el )
 }
 
 
-//改变连接器状态，用于图形用户界面上正确地显示这些变化
+//改变连接器状态
 void eNode::updateConnectors()
 {
     if( !m_voltChanged ) return;

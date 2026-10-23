@@ -60,24 +60,29 @@ Probe::~Probe()
 void Probe::timeStep(uint64_t currentTime)
 {
     m_ctr++;
-    if (m_ctr >= m_speed) 
+    if (m_ctr < m_speed) return;
+
+    // 缓存失效条件: 节点列表重建(startSim/createNodes 递增版本号)
+    if( !m_watchBuilt || m_watchGen != m_cirSim->nodeListGen() )
     {
-        for (auto nodeList: m_cirSim->getNodeList())
+        m_watchCache.clear();
+        for( eNode* nodeList : m_cirSim->getNodeList() )
         {
-            if (nodeList->itemId().find("eNodeSim") != std::string::npos)
+            if( nodeList->itemId().find("eNodeSim") == std::string::npos ) continue;
+            for( ePin* pin : nodeList->getEpins() )
             {
-                auto pins = nodeList->getEpins();
-                for (auto pin: pins )
-                {
-                    const double volt = nodeList->getVolt();
-                    const std::string id = pin->getId();
-                    if(probes.find(id) == probes.end()){continue;}
-                    probes[id]->datas.push(std::make_pair(currentTime,volt)); // Input
-                }
+                auto it = probes.find( pin->getId() );
+                if( it != probes.end() )
+                    m_watchCache.push_back({ nodeList, it->second });
             }
         }
-        m_ctr = 1;
+        m_watchGen  = m_cirSim->nodeListGen();
+        m_watchBuilt = true;
     }
+    // 缓存探针数据采样
+    for( auto& watch : m_watchCache )
+        watch.second->datas.push( std::make_pair(currentTime, watch.first->getVolt()) );
+    m_ctr = 1;
 }
 
 void Probe::viewDate()
@@ -97,6 +102,7 @@ void Probe::setVoltMes(std::string voltMes)
     if(it == probes.end()){
         m_voltMes = voltMes;
         probes[m_voltMes] = new MeterData(meterId, m_length);
+        m_watchBuilt = false; // 监控目标变化,重建缓存
     }
 }
 

@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.15)
 
-project(lceda-pro-sim-server LANGUAGES CXX)
+project(lceda-pro-sim-server LANGUAGES CXX C)
 
 # ========== 基础配置 ==========
 set(CMAKE_CXX_STANDARD 20)
@@ -32,7 +32,7 @@ if(EMSCRIPTEN)
         -sEXPORTED_RUNTIME_METHODS=[\"ccall\",\"cwrap\",\"FS\"] \
         -sEXIT_RUNTIME=0 \
         -sNO_DISABLE_EXCEPTION_CATCHING \
-        -sASSERTIONS=1 -sSTACK_SIZE=4194304 \
+        -sASSERTIONS=0 -sSTACK_SIZE=4194304 \
         -sFORCE_FILESYSTEM=1 \
         --embed-file ${CMAKE_SOURCE_DIR}/config/data@/config/data \
     ")
@@ -49,6 +49,7 @@ include_directories(
 
 # ========== 子模块 ==========
 add_subdirectory(src/cirSim/src)
+add_subdirectory(external/suitesparse)   # KLU 稀疏求解器(SuiteSparse 精简版)
 
 # ========== wasm 入口 ==========
 add_executable(lceda-pro-sim-server
@@ -57,4 +58,5 @@ add_executable(lceda-pro-sim-server
 
 target_link_libraries(lceda-pro-sim-server
     CirSimModule
+    SuiteSparseKlu
 )

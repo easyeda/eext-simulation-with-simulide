@@ -61,8 +61,32 @@ private:
     void analyze();
 
     // optimized implementations
-    void factorMatrix( int n, int group );   
-    bool luSolve( int n, int group );        
+    void factorMatrix( int n, int group );
+    bool luSolve( int n, int group );
+
+    // ---- KLU 稀疏求解(大块专用) ----
+    // 大块(节点数>=KLU_MIN_SIZE)用 SuiteSparse KLU 稀疏 LU,
+    // 小块保留稠密 LU(开销更低)。
+    // CSC 结构: Ap[i..i+1) 给出列 i 的行索引段 Ai[nz]，Ax 对应数值。
+    struct KLUBlock {
+        int n = 0;
+        std::vector<int>    Ap;     // CSC 列指针 (n+1)
+        std::vector<int>    Ai;     // 行索引
+        std::vector<double> Ax;     // 数值(与 Ai 各自独立, 避免扰动)
+        std::vector<int>    symAp;  // 符号分解时的结构快照(用于检测稀疏模式变化)
+        std::vector<int>    symAi;
+        void* sym   = nullptr;      // klu_symbolic*
+        void* num   = nullptr;      // klu_numeric*
+        bool  symbolicDone = false;
+        bool  kluOk = false;        // KLU 分解成功; 失败时退回稠密 LU
+    };
+    static const int KLU_MIN_SIZE = 64;   // 块尺寸达到此值才走稀疏
+
+    std::vector<KLUBlock> m_klu;          // 与 m_aFaList 等长, 无效块为空
+
+    void buildCSC( int group );           // 从稠密 m_circMatrix 子块提取 CSC
+    void kluFactor( int group );          // 符号+数值分解(复用时跳过符号)
+    bool kluSolveBlock( int group );      // 前代回代, 写回节点电压        
 
     int m_numEnodes;
     std::vector<eNode*>* m_eNodeList;
