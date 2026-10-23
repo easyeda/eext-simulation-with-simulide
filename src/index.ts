@@ -83,7 +83,7 @@ let dataTimerId: number | null = null;
 let isSimulationRunning = false;
 
 const STEP_INTERVAL_MS = 20;
-const DATA_PUSH_INTERVAL_MS = 120;
+const DATA_PUSH_INTERVAL_MS = 60;
 const MIN_STEP_INTERVAL_MS = 5;
 const MAX_STEP_INTERVAL_MS = 100;
 
